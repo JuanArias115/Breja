@@ -85,10 +85,11 @@ export class Store {
       CREATE INDEX IF NOT EXISTS registrations_match ON registrations(match_id,status);
       CREATE INDEX IF NOT EXISTS ledger_user_date ON ledger(user_id,occurred_at);
     `);
-    for (const [key,value] of Object.entries({price_cents:500,capacity:14,cancel_hours:24,timezone:'Europe/Vienna',venue:'USI',address:'',payment_instructions_es:'Contacta con el organizador para consultar cómo pagar.',payment_instructions_en:'Please contact the organiser for payment details.',payment_instructions_de:'Bitte kontaktiere den Organisator für die Zahlungsdetails.'})) {
+    for (const [key,value] of Object.entries({payment_instructions_pt:'Contacte a organização para saber como pagar.',payment_instructions_ar:'تواصل مع المنظّم لمعرفة طريقة الدفع.',price_cents:500,capacity:18,cancel_hours:24,timezone:'Europe/Vienna',venue:'USI',address:'',payment_instructions_es:'Contacta con el organizador para consultar cómo pagar.',payment_instructions_en:'Please contact the organiser for payment details.',payment_instructions_de:'Bitte kontaktiere den Organisator für die Zahlungsdetails.'})) {
       this.run('INSERT OR IGNORE INTO settings VALUES (?,?)',key,JSON.stringify(value));
     }
     if(!this.all('PRAGMA table_info(matches)').some(c=>c.name==='allow_guests'))this.db.exec('ALTER TABLE matches ADD COLUMN allow_guests INTEGER NOT NULL DEFAULT 1');
+    for(const code of ['pt','ar'])for(const field of ['title','body'])if(!this.all('PRAGMA table_info(news)').some(c=>c.name===field+'_'+code))this.db.exec(`ALTER TABLE news ADD COLUMN ${field}_${code} TEXT NOT NULL DEFAULT ''`);
     // Retire the imported Excel directory; registered accounts and their history stay intact.
     this.db.exec('DROP TABLE IF EXISTS roster');
     this.db.exec("CREATE TABLE IF NOT EXISTS profile_photos (user_id TEXT PRIMARY KEY REFERENCES users(id), image_data TEXT NOT NULL, version TEXT NOT NULL)");
@@ -129,7 +130,7 @@ export class Store {
     fail(['approved','onboarding'].includes(membershipStatus),'invalid_state');
     const email=text(profile.email,254).toLowerCase();fail(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email),'invalid_email');fail(!this.get('SELECT id FROM users WHERE email=?',email),'email_exists',409);
     const uid=id();
-    this.run('INSERT INTO users (id,email,name,display_name,language,role,created_at,membership_status) VALUES (?,?,?,?,?,?,?,?)',uid,email,text(profile.name,100),text(profile.display_name||profile.name,60),['en','de','es'].includes(profile.language)?profile.language:'en',role,this.now(),membershipStatus);
+    this.run('INSERT INTO users (id,email,name,display_name,language,role,created_at,membership_status) VALUES (?,?,?,?,?,?,?,?)',uid,email,text(profile.name,100),text(profile.display_name||profile.name,60),['en','de','es','pt','ar'].includes(profile.language)?profile.language:'en',role,this.now(),membershipStatus);
     return this.get('SELECT * FROM users WHERE id=?',uid);
   }
   publicUser(user) {const {firebase_uid,...profile}=user;return {...profile,google_linked:!!firebase_uid};}
@@ -184,13 +185,13 @@ export class Store {
     const position=text(input.position,40),secondary=text(input.position_secondary??'',40,false);
     fail(FOOTBALL_POSITIONS.includes(position)&&(!secondary||FOOTBALL_POSITIONS.includes(secondary))&&position!==secondary,'invalid_positions');
     const name=text(input.name,100),displayName=text(input.display_name||name,60);
-    fail(['en','de','es'].includes(input.language),'invalid_input');
+    fail(['en','de','es','pt','ar'].includes(input.language),'invalid_input');
     return this.transaction(()=>{
       const user=this.get('SELECT * FROM users WHERE id=?',uid);fail(user?.membership_status==='onboarding'&&!user.deleted_at,'application_not_editable',409);
       this.run("UPDATE users SET name=?,display_name=?,birthday=?,position=?,position_secondary=?,language=?,membership_status='pending',application_submitted_at=? WHERE id=?",name,displayName,birthday,position,secondary,input.language,this.now(),uid);
       this.audit(uid,'membership.submit',uid);
       for(const admin of this.all("SELECT * FROM users WHERE role='admin' AND membership_status='approved' AND deleted_at IS NULL")){
-        const messages={es:['Nueva solicitud de ingreso · Breja FC','Hay una nueva solicitud de ingreso. Entra en Miembros para revisar sus datos y aceptar o rechazar la solicitud.'],de:['Neuer Aufnahmeantrag · Breja FC','Ein neuer Aufnahmeantrag ist eingegangen. Öffne Mitglieder, um die Angaben zu prüfen und den Antrag anzunehmen oder abzulehnen.'],en:['New membership request · Breja FC','A new membership request has arrived. Open Members to review the details and accept or reject the request.']};
+        const messages={pt:['Novo pedido de adesão · Breja FC','Há um novo pedido de adesão. Abra Membros para rever os dados e aceitar ou rejeitar o pedido.'],ar:['طلب انضمام جديد · Breja FC','وصل طلب انضمام جديد. افتح صفحة الأعضاء لمراجعة البيانات وقبول الطلب أو رفضه.'],es:['Nueva solicitud de ingreso · Breja FC','Hay una nueva solicitud de ingreso. Entra en Miembros para revisar sus datos y aceptar o rechazar la solicitud.'],de:['Neuer Aufnahmeantrag · Breja FC','Ein neuer Aufnahmeantrag ist eingegangen. Öffne Mitglieder, um die Angaben zu prüfen und den Antrag anzunehmen oder abzulehnen.'],en:['New membership request · Breja FC','A new membership request has arrived. Open Members to review the details and accept or reject the request.']};
         const [subject,body]=messages[admin.language]||messages.en;
         this.enqueue(admin,'membership',`membership:${uid}:${admin.id}`,subject,body,uid);
       }
@@ -266,7 +267,7 @@ export class Store {
       const until=new Date(Math.min(this.clock().getTime()+2*3600000,new Date(m.starts_at).getTime())).toISOString();
       this.run("UPDATE registrations SET status='offered',offer_until=? WHERE id=?",until,r.id);
       const u=this.get('SELECT * FROM users WHERE id=?',r.responsible_id);
-      this.enqueue(u,'offer',`offer:${r.id}:${until}`,u.language==='es'?'¡Hay una plaza disponible!':u.language==='de'?'Ein Platz ist frei!':'A spot is yours!',u.language==='es'?`Hay una plaza para ${m.title}. Acéptala en la app antes del ${new Date(until).toLocaleString('es-ES',{timeZone:m.timezone})}.`:u.language==='de'?`Ein Platz für ${m.title} ist frei. Bestätige ihn bis ${until} in der App.`:`A spot for ${m.title} is available. Accept it in the app before ${until}.`);
+      this.enqueue(u,'offer',`offer:${r.id}:${until}`,u.language==='pt'?'Há uma vaga disponível!':u.language==='ar'?'يتوفر مكان لك!':u.language==='es'?'¡Hay una plaza disponible!':u.language==='de'?'Ein Platz ist frei!':'A spot is yours!',u.language==='pt'?`Há uma vaga para ${m.title}. Aceite na aplicação antes de ${until}.`:u.language==='ar'?`يتوفر مكان في ${m.title}. اقبله في التطبيق قبل ${until}.`:u.language==='es'?`Hay una plaza para ${m.title}. Acéptala en la app antes del ${new Date(until).toLocaleString('es-ES',{timeZone:m.timezone})}.`:u.language==='de'?`Ein Platz für ${m.title} ist frei. Bestätige ihn bis ${until} in der App.`:`A spot for ${m.title} is available. Accept it in the app before ${until}.`);
     }
   }
   join(actor,mid,guestName=null) {
@@ -352,6 +353,12 @@ export class Store {
     }this.audit(actor,'statements.generate',month,{count:previews.length});return {count:previews.length};});
   }
   statementText(s) {
+    if(['pt','ar'].includes(s.user.language)){
+      const ar=s.user.language==='ar',locale=ar?'ar':'pt-PT',fmt=n=>new Intl.NumberFormat(locale,{style:'currency',currency:'EUR'}).format(n/100);
+      const labels=ar?{played:'شارك',absent:'لم يحضر',late_cancelled:'إلغاء متأخر',guest:'ضيف',payment:'دفعة',opening:'رصيد افتتاحي',reversal:'عكس قيد'}:{played:'Jogou',absent:'Não compareceu',late_cancelled:'Cancelamento tardio',guest:'Convidado',payment:'Pagamento',opening:'Saldo inicial',reversal:'Anulação'};
+      const lines=s.entries.map(e=>{let label=labels[e.kind]||e.description;if(e.kind==='charge'){const d=JSON.parse(e.description);label=`${d.title} · ${labels[d.reason]}${d.guest?' · '+labels.guest+': '+d.guest:''}`;}return `${new Date(e.occurred_at).toLocaleDateString(locale,{timeZone:this.settings().timezone})} · ${label} · ${fmt(e.amount_cents)}`;});
+      return `${ar?'مرحبًا':'Olá'} ${s.user.display_name},\n\nBreja FC · ${s.month}\n${ar?'الرصيد السابق':'Saldo anterior'}: ${fmt(s.opening)}\n${lines.join('\n')}\n${ar?'رصيد نهاية الشهر':'Saldo no fim do mês'}: ${fmt(s.closing)}\n${ar?'الرصيد الحالي':'Saldo atual'}: ${fmt(this.balance(s.user.id))}\n\n${this.settings()[ar?'payment_instructions_ar':'payment_instructions_pt']}\n${ar?'راجع حسابك في التطبيق لمعرفة الرصيد المحدّث.':'Consulte a sua conta na aplicação para ver o saldo atualizado.'}`;
+    }
     const es=s.user.language==='es',de=s.user.language==='de',fmt=n=>new Intl.NumberFormat(es?'es-ES':de?'de-AT':'en-IE',{style:'currency',currency:'EUR'}).format(n/100);
     const labels=es?{played:'Jugó',absent:'No asistió',late_cancelled:'Cancelación tardía',guest:'Invitado'}:de?{played:'Gespielt',absent:'Nicht erschienen',late_cancelled:'Späte Absage',guest:'Gast'}:{played:'Played',absent:'No-show',late_cancelled:'Late cancellation',guest:'Guest'};
     const lines=s.entries.map(e=>{let label=es?({payment:'Pago',opening:'Saldo inicial',reversal:'Anulación'}[e.kind]||e.description):e.description;if(e.kind==='charge'){const d=JSON.parse(e.description);label=`${d.title} · ${labels[d.reason]}${d.guest?' · '+labels.guest+': '+d.guest:''}`;}return `${new Date(e.occurred_at).toLocaleDateString(es?'es-ES':de?'de-AT':'en-GB',{timeZone:this.settings().timezone})} · ${label} · ${fmt(e.amount_cents)}`;});

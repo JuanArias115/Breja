@@ -11,6 +11,6 @@ export function invitation(match,origin){
  return `Breja FC\nReady for a game? Come join us!\n\nWhen: ${when} – ${end}\nWhere: ${match.venue}${match.address?'\n'+match.address:''}${mapLink(match)?'\nMap: '+mapLink(match):''}\nPrice: ${price} per player\n\nSave your spot here:\n${origin}/m/${match.share_token}\n\nSee you on the pitch!`;
 }
 export function newsText(post,field,language){
- const chosen=[language,'en','de','es'].find(code=>post['title_'+code]&&post['body_'+code]);
+ const chosen=[language,'en','de','es','pt','ar'].find(code=>post['title_'+code]&&post['body_'+code]);
  return chosen?post[field+'_'+chosen]:'';
 }

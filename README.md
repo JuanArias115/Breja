@@ -194,3 +194,7 @@ Se guardan únicamente tipos de evento permitidos, área, rol, código, estado, 
 ### Invitados / referidos por partido
 
 El administrador puede marcar «Permitir invitados / referidos» al crear un partido y cambiarlo después desde Administrar en el detalle, guardando el cambio. Los partidos nuevos lo tienen desactivado por defecto; los existentes mantienen el permiso previo. Desactivarlo bloquea nuevas inscripciones de invitados también en la API, pero conserva inscripciones, listas de espera y pagos existentes. Los miembros siguen pudiendo inscribirse a sí mismos. El rol dev no puede activar este permiso.
+
+### Idiomas
+
+La interfaz y los correos admiten inglés, alemán, español, portugués y árabe. El árabe cambia la dirección de lectura a derecha a izquierda. Los perfiles guardan el idioma elegido; las noticias permiten traducciones opcionales en los cinco idiomas (sin traducir automáticamente contenido escrito por miembros). Las instrucciones de pago son editables por idioma. El máximo predeterminado para nuevas instalaciones es de 18 jugadores.

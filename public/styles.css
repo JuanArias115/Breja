@@ -32,3 +32,6 @@ dialog{border:1px solid #dce2d2;background:#fff;border-radius:22px;box-shadow:0 
 
 @media(max-width:900px){.health-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
 @media(max-width:370px){.health-metrics{grid-template-columns:1fr}}
+
+html[dir="rtl"] body{font-family:Arial,Tahoma,sans-serif;letter-spacing:normal}html[dir="rtl"] table{text-align:right}html[dir="rtl"] td:last-child,html[dir="rtl"] th:last-child{text-align:left}html[dir="rtl"] .sidebar{border-right:0;border-left:1px solid #e2e4d9}html[dir="rtl"] .auth-language{right:auto;left:20px}html[dir="rtl"] .search svg{left:auto;right:12px}html[dir="rtl"] .search input{padding-left:12px;padding-right:38px}html[dir="rtl"] input[type="email"],html[dir="rtl"] input[type="url"],html[dir="rtl"] input[type="tel"],html[dir="rtl"] code{direction:ltr;text-align:left}html[dir="rtl"] .nav-label,html[dir="rtl"] .eyebrow,html[dir="rtl"] th{letter-spacing:0}
+@media(max-width:900px){html[dir="rtl"] .sidebar{left:auto;right:0;transform:translateX(100%)}html[dir="rtl"] .sidebar.is-open{transform:translateX(0)}}

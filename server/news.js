@@ -15,7 +15,7 @@ export function newsImage(value=''){
 }
 export function newsInput(input){
  const result={};let count=0;
- for(const code of ['en','de','es']){
+ for(const code of ['en','de','es','pt','ar']){
   const title=text(input['title_'+code]||'',160,false),body=text(input['body_'+code]||'',4000,false);
   fail(Boolean(title)===Boolean(body),'news_translation_incomplete');
   result['title_'+code]=title;result['body_'+code]=body;if(title)count++;

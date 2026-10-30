@@ -1,3 +1,4 @@
+import extraLanguages from './extra-languages.js';
 import spanish from './es.js';
 import membershipMessages from './membership-i18n.js';
 import deletionMessages from './deletion-i18n.js';
@@ -124,9 +125,11 @@ mapAddressHint:["Enter an address to preview the map.", "Gib eine Adresse für d
 for(const [key,translations] of Object.entries(messages))translations.push(spanish[key]);
 Object.assign(messages,membershipMessages,deletionMessages,securityMessages,healthMessages);
 Object.assign(messages,{allowGuests:['Allow guests / referrals','Gäste erlauben','Permitir invitados / referidos'],guestPermissionHint:['Changes affect new guests only. Existing registrations remain.','Änderungen gelten nur für neue Gäste. Bestehende Anmeldungen bleiben.','Puedes cambiarlo en cualquier momento. Los referidos inscritos se conservan.'],guests_disabled:['Guests are not allowed for this match.','Für dieses Spiel sind keine Gäste erlaubt.','Este partido no permite añadir referidos.']});
-const supported=value=>['en','de','es'].includes(value)?value:'en';
+messages.portuguese=['Portuguese','Portugiesisch','Portugués'];messages.arabic=['Arabic','Arabisch','Árabe'];
+for(const [key,values] of Object.entries(extraLanguages)){if(messages[key]){messages[key][3]=values[0];messages[key][4]=values[1];}}
+const supported=value=>['en','de','es','pt','ar'].includes(value)?value:'en';
 export let lang=supported(localStorage.getItem('breja-language'));
-export function setLanguage(value){lang=supported(value);localStorage.setItem('breja-language',lang);document.documentElement.lang=lang;}
-export function t(key,vars={}){let value=messages[key]?.[{en:0,de:1,es:2}[lang]]??messages[key]?.[0]??key;for(const [name,v] of Object.entries(vars))value=value.replaceAll('{'+name+'}',String(v));return value;}
-export function money(value){return new Intl.NumberFormat({en:'en-IE',de:'de-AT',es:'es-ES'}[lang],{style:'currency',currency:'EUR'}).format(value/100);}
-export function date(value,options={},zone='Europe/Vienna'){return new Intl.DateTimeFormat({en:'en-GB',de:'de-AT',es:'es-ES'}[lang],{timeZone:zone,day:'numeric',month:'short',...options}).format(new Date(value));}
+export function setLanguage(value){lang=supported(value);localStorage.setItem('breja-language',lang);document.documentElement.lang=lang;document.documentElement.dir=lang==='ar'?'rtl':'ltr';}
+export function t(key,vars={}){let value=messages[key]?.[{en:0,de:1,es:2,pt:3,ar:4}[lang]]??messages[key]?.[0]??key;for(const [name,v] of Object.entries(vars))value=value.replaceAll('{'+name+'}',String(v));return value;}
+export function money(value){return new Intl.NumberFormat({en:'en-IE',de:'de-AT',es:'es-ES',pt:'pt-PT',ar:'ar'}[lang],{style:'currency',currency:'EUR'}).format(value/100);}
+export function date(value,options={},zone='Europe/Vienna'){return new Intl.DateTimeFormat({en:'en-GB',de:'de-AT',es:'es-ES',pt:'pt-PT',ar:'ar'}[lang],{timeZone:zone,day:'numeric',month:'short',...options}).format(new Date(value));}
