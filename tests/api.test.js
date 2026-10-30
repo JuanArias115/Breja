@@ -65,6 +65,10 @@ test('Spanish signup, profile, login messages and monthly statements retain the 
  const message=store.get("SELECT * FROM outbox WHERE recipient=? AND kind='login'",email);assert.match(message.subject,/código de acceso/);assert.match(message.body,/Caduca en 10 minutos/);
  const login=await call('/api/auth/verify',{method:'POST',body:{email,code:request.developmentCode}});assert.equal(login.status,200);const cookie=login.headers['set-cookie'].split(';')[0];
  let state=(await call('/api/bootstrap',{headers:{cookie}})).json();assert.equal(state.me.language,'es');
+ assert.equal(state.me.membership_status,'onboarding');
+ assert.equal((await call('/api/membership/application',{method:'POST',headers:{cookie},body:{name:'Ana',display_name:'Ana',birthday:'1995-02-28',position:'winger',position_secondary:'striker',language:'es'}})).status,200);
+ assert.equal((await call('/api/admin/applications/'+state.me.id,{method:'PATCH',headers:{cookie:adminCookie},body:{decision:'approved'}})).status,200);
+ state=(await call('/api/bootstrap',{headers:{cookie}})).json();
  assert.equal((await call('/api/profile',{method:'PATCH',headers:{cookie},body:{...state.me,display_name:'Ana ES',language:'es'}})).status,200);
  state=(await call('/api/bootstrap',{headers:{cookie}})).json();assert.equal(state.me.language,'es');
  const body=store.statementText({user:state.me,month:'2026-09',opening:500,closing:1000,entries:[{kind:'charge',amount_cents:500,occurred_at:'2026-09-20T12:00:00Z',description:JSON.stringify({title:'Partido',reason:'played',guest:'Luis'})}]});

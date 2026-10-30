@@ -71,7 +71,13 @@ Referencias: [Google con Firebase](https://firebase.google.com/docs/auth/web/goo
 
 ## Roles y altas
 
-Las cuentas se crean al registrarse o mediante **Miembros → Añadir miembro**. Ya no existe una lista importada del Excel ni un proceso manual para vincular esos nombres. La migración retira esa lista sin borrar cuentas registradas, sesiones, partidos o movimientos. El Excel original se conserva localmente y no se incluye en Git.
+El primer acceso con Google o con código de correo abre una **solicitud de ingreso**. La persona completa su nombre, fecha de nacimiento y posición favorita; puede añadir una segunda posición distinta. La solicitud queda pendiente de revisión, sin acceso a las páginas privadas del club, fotos, noticias, cuentas o inscripciones. La restricción se aplica también en la API.
+
+En **Miembros → Solicitudes de ingreso**, un administrador revisa el nombre, correo, fecha de nacimiento y posiciones antes de **aceptar o rechazar**. La aceptación permite entrar como miembro con la misma sesión al pulsar Actualizar; el rechazo mantiene el acceso bloqueado y se conserva en el historial de solicitudes. Volver a iniciar sesión no reinicia la solicitud ni evita la decisión. No se envían correos adicionales al enviar o revisar solicitudes.
+
+Las cuentas existentes conservan su acceso y sus datos. Las altas manuales mediante **Miembros → Añadir miembro** ya están aprobadas por el administrador. El administrador inicial definido en `ADMIN_EMAIL` queda aprobado al verificar por primera vez su identidad, para poder gestionar las solicitudes. La fecha de nacimiento y los datos de la solicitud son visibles solo para la persona y los administradores.
+
+Ya no existe una lista importada del Excel ni un proceso manual para vincular nombres. La migración retira esa lista sin borrar cuentas registradas, sesiones, partidos o movimientos. El Excel original se conserva localmente y no se incluye en Git.
 
 En **Miembros → Cambiar rol**, un administrador puede asignar:
 

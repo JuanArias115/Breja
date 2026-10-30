@@ -4,7 +4,7 @@ import { createReadStream, existsSync, mkdirSync, statSync } from 'node:fs';
 import { dirname, extname, join, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { createHash, createHmac, randomBytes, randomInt, timingSafeEqual } from 'node:crypto';
-import { Store, AppError, fail, id, text, cents } from './store.js';
+import { Store, AppError, fail, id, text, cents, FOOTBALL_POSITIONS, birthdayValue } from './store.js';
 import { newsInput, newsImage } from './news.js';
 import { seedDevelopment } from './seed.js';
 
@@ -39,14 +39,15 @@ function visibleMatch(m,me){
   return {...m,registrations:registrations.map(r=>({id:r.id,user_id:r.user_id,name:r.guest_name||r.display_name,guest:!!r.guest_name,sponsor:r.guest_name?r.sponsor_name:null,status:r.status,attendance:r.attendance,mine:r.responsible_id===me.id,offer_until:r.responsible_id===me.id?r.offer_until:null,...(me.role==='admin'?{responsible_id:r.responsible_id}: {})})),occupied:store.occupancy(m.id)};
 }
 function bootstrap(me){
-  const config={firebase:googleConfig,development:!production,emailEnabled:production,timezone:store.settings().timezone};
+  const config={firebase:googleConfig,development:!production,emailEnabled:production,timezone:store.settings().timezone,positions:FOOTBALL_POSITIONS};
   if(!me)return {me:null,config};
+  if(me.membership_status!=='approved')return {me:store.publicUser(me),config};
   for(const m of store.all("SELECT id FROM matches WHERE status='open'"))store.promote(m.id);
   const settings=store.settings(),developer=me.role==='dev',manager=me.role==='admin'||developer;
   const visibleSettings=developer?Object.fromEntries(['price_cents','capacity','cancel_hours','timezone'].map(key=>[key,settings[key]])):settings;
   return {me:store.publicUser(me),config,settings:visibleSettings,leaderboard:store.leaderboard(),photos:store.all("SELECT user_id,'/api/members/'||user_id||'/photo?v='||version url FROM profile_photos"),venues:store.all('SELECT * FROM venues WHERE archived=0 OR ? ORDER BY archived,name',manager?1:0),matches:store.all("SELECT * FROM matches WHERE status<>'draft' OR created_by=? OR ? ORDER BY starts_at DESC",me.id,manager?1:0).map(m=>visibleMatch(m,me)),news:store.all("SELECT id,title_en,title_de,title_es,body_en,body_de,body_es,pinned,created_at,CASE WHEN image_data<>'' THEN '/api/news/'||id||'/image' ELSE '' END image_url FROM news ORDER BY pinned DESC,created_at DESC"),...(developer?{}:{account:{balance:store.balance(me.id),ledger:store.all('SELECT * FROM ledger WHERE user_id=? ORDER BY occurred_at DESC,created_at DESC',me.id),reports:store.all('SELECT * FROM payment_reports WHERE user_id=? ORDER BY created_at DESC',me.id)},statements:store.all('SELECT id,month,snapshot,created_at FROM statements WHERE user_id=? ORDER BY month DESC',me.id).map(r=>({...r,snapshot:JSON.parse(r.snapshot)}))})};
 }
-function adminData(){return {stats:{received:store.get("SELECT COALESCE(-SUM(l.amount_cents),0) total FROM ledger l LEFT JOIN ledger original ON original.id=l.reverses_id WHERE l.kind='payment' OR (l.kind='reversal' AND original.kind='payment')").total},members:store.all('SELECT * FROM users ORDER BY display_name').map(u=>({...store.publicUser(u),balance:store.balance(u.id)})),ledger:store.all('SELECT l.*,u.display_name FROM ledger l JOIN users u ON l.user_id=u.id ORDER BY l.created_at DESC LIMIT 200'),reports:store.all("SELECT r.*,u.display_name FROM payment_reports r JOIN users u ON r.user_id=u.id WHERE r.status='pending' ORDER BY r.created_at"),outbox:store.all("SELECT id,user_id,recipient,subject,body,kind,status,error,created_at,sent_at FROM outbox WHERE kind<>'login' ORDER BY created_at DESC LIMIT 100"),statements:store.all('SELECT s.id,s.month,s.created_at,u.display_name FROM statements s JOIN users u ON s.user_id=u.id ORDER BY s.created_at DESC'),audit:store.all('SELECT a.*,u.display_name FROM audit a LEFT JOIN users u ON a.actor_id=u.id ORDER BY a.created_at DESC LIMIT 40')};}
+function adminData(){return {applications:store.all("SELECT * FROM users WHERE membership_status IN ('pending','rejected') ORDER BY application_submitted_at").map(u=>store.publicUser(u)),stats:{received:store.get("SELECT COALESCE(-SUM(l.amount_cents),0) total FROM ledger l LEFT JOIN ledger original ON original.id=l.reverses_id WHERE l.kind='payment' OR (l.kind='reversal' AND original.kind='payment')").total},members:store.all("SELECT * FROM users WHERE membership_status='approved' ORDER BY display_name").map(u=>({...store.publicUser(u),balance:store.balance(u.id)})),ledger:store.all('SELECT l.*,u.display_name FROM ledger l JOIN users u ON l.user_id=u.id ORDER BY l.created_at DESC LIMIT 200'),reports:store.all("SELECT r.*,u.display_name FROM payment_reports r JOIN users u ON r.user_id=u.id WHERE r.status='pending' ORDER BY r.created_at"),outbox:store.all("SELECT id,user_id,recipient,subject,body,kind,status,error,created_at,sent_at FROM outbox WHERE kind<>'login' ORDER BY created_at DESC LIMIT 100"),statements:store.all('SELECT s.id,s.month,s.created_at,u.display_name FROM statements s JOIN users u ON s.user_id=u.id ORDER BY s.created_at DESC'),audit:store.all('SELECT a.*,u.display_name FROM audit a LEFT JOIN users u ON a.actor_id=u.id ORDER BY a.created_at DESC LIMIT 40')};}
 
 export async function api(req,res,url){
  const path=url.pathname,method=req.method,me=user(req);
@@ -59,7 +60,7 @@ export async function api(req,res,url){
  if(path.startsWith('/api/public/match/')&&method==='GET'){
    const m=store.get("SELECT * FROM matches WHERE share_token=? AND status<>'draft'",path.split('/').at(-1));fail(m,'not_found',404);
    const {title,starts_at,ends_at,timezone,venue,address,map_url,price_cents,capacity,cancel_hours,status}=m;
-   return json(res,200,{title,starts_at,ends_at,timezone,venue,address,map_url,price_cents,capacity,cancel_hours,status,occupied:store.occupancy(m.id),...(me?{id:m.id}: {})});
+   return json(res,200,{title,starts_at,ends_at,timezone,venue,address,map_url,price_cents,capacity,cancel_hours,status,occupied:store.occupancy(m.id),...(me?.membership_status==='approved'?{id:m.id}: {})});
  }
  if(path==='/api/auth/google'&&method==='POST'){
   throttle('google:'+req.socket.remoteAddress,20);const input=await body(req);
@@ -76,13 +77,17 @@ export async function api(req,res,url){
    const input=await body(req),email=text(input.email,254).toLowerCase(),code=text(input.code,6);const login=store.get('SELECT * FROM login_codes WHERE email=?',email);
    fail(login&&login.expires_at>store.now()&&login.attempts<5,'invalid_code',401);store.run('UPDATE login_codes SET attempts=attempts+1 WHERE email=?',email);
    fail(timingSafeEqual(Buffer.from(login.code_hash),Buffer.from(codeHash(email,code))),'invalid_code',401);
-   let u=store.get('SELECT * FROM users WHERE email=?',email);if(!u)u=store.addUser(JSON.parse(login.profile),email===process.env.ADMIN_EMAIL?.toLowerCase()?'admin':'member');
+   let u=store.get('SELECT * FROM users WHERE email=?',email);if(!u){const initialAdmin=email===process.env.ADMIN_EMAIL?.toLowerCase();u=store.addUser(JSON.parse(login.profile),initialAdmin?'admin':'member',initialAdmin?'approved':'onboarding');}
    store.run('DELETE FROM login_codes WHERE email=?',email);session(res,u.id);return json(res,200,{ok:true});
  }
  if(path==='/api/auth/development'&&method==='POST'){
    fail(!production,'not_found',404);const input=await body(req);fail(['member','admin'].includes(input.role),'invalid_role');const email=input.role==='member'?'sam@example.test':'alex@example.test';session(res,store.get('SELECT id FROM users WHERE email=?',email).id);return json(res,200,{ok:true});
  }
  fail(me,'unauthorized',401);
+ if(path==='/api/auth/logout'&&method==='POST'){const token=req.headers.cookie?.match(/breja_session=([^;]+)/)?.[1];if(token)store.run('DELETE FROM sessions WHERE token_hash=?',hash(token));cookie(res,'',true);return json(res,200,{ok:true});}
+ if(path==='/api/membership/application'&&method==='POST')return json(res,200,store.submitApplication(me.id,await body(req)));
+ // All private club APIs, including media and profile edits, require approval.
+ fail(me.membership_status==='approved','membership_required',403);
  const imageMatch=path.match(/^\/api\/news\/([^/]+)\/image$/);
  if(imageMatch&&method==='GET'){
   const row=store.get('SELECT image_data FROM news WHERE id=?',imageMatch[1]);fail(row?.image_data,'not_found',404);
@@ -98,10 +103,11 @@ export async function api(req,res,url){
   store.run('INSERT OR REPLACE INTO profile_photos VALUES (?,?,?)',me.id,p.image_data,id());store.audit(me.id,'profile.photo.update',me.id);return json(res,200,{ok:true});
  }
  if(path==='/api/profile/photo'&&method==='DELETE'){store.run('DELETE FROM profile_photos WHERE user_id=?',me.id);store.audit(me.id,'profile.photo.remove',me.id);return json(res,200,{ok:true});}
- if(path==='/api/auth/logout'&&method==='POST'){const token=req.headers.cookie?.match(/breja_session=([^;]+)/)?.[1];if(token)store.run('DELETE FROM sessions WHERE token_hash=?',hash(token));cookie(res,'',true);return json(res,200,{ok:true});}
  if(path==='/api/profile'&&method==='PATCH'){
-   const p=await body(req);fail(['en','de','es'].includes(p.language),'invalid_input');const birthday=text(p.birthday||'',10,false);fail(!birthday||/^\d{4}-\d{2}-\d{2}$/.test(birthday)&&new Date(birthday)<new Date(),'invalid_date');
-   store.run('UPDATE users SET name=?,display_name=?,phone=?,birthday=?,position=?,language=? WHERE id=?',text(p.name,100),text(p.display_name,60),text(p.phone||'',30,false),birthday,text(p.position||'',50,false),p.language,me.id);return json(res,200,{ok:true});
+   const p=await body(req);fail(['en','de','es'].includes(p.language),'invalid_input');const birthday=birthdayValue(p.birthday,store.now().slice(0,10),!!me.application_submitted_at);
+   const position=text(p.position||'',50,false),secondary=text(p.position_secondary??me.position_secondary,50,false);
+   fail((!position&&!me.application_submitted_at||FOOTBALL_POSITIONS.includes(position)||position===me.position)&&(!secondary||FOOTBALL_POSITIONS.includes(secondary))&&(!secondary||secondary!==position),'invalid_positions');
+   store.run('UPDATE users SET name=?,display_name=?,phone=?,birthday=?,position=?,position_secondary=?,language=? WHERE id=?',text(p.name,100),text(p.display_name,60),text(p.phone||'',30,false),birthday,position,secondary,p.language,me.id);return json(res,200,{ok:true});
  }
  if(me.role==='dev'&&(/^\/api\/(matches|registrations)\//.test(path)||path==='/api/payment-reports'))throw new AppError('forbidden',403);
  let match=path.match(/^\/api\/matches\/([^/]+)\/join$/);if(match&&method==='POST'){const p=await body(req);fail(p.accept_policy===true,'policy_required');return json(res,200,store.join(me.id,match[1],p.guest_name||null));}
@@ -113,6 +119,8 @@ export async function api(req,res,url){
    (path==='/api/admin/matches'&&method==='POST')||
    (/^\/api\/admin\/matches\/[^/]+\/publish$/.test(path)&&method==='POST');
  fail(me.role==='admin'||me.role==='dev'&&technicalAction,'forbidden',403);
+ match=path.match(/^\/api\/admin\/applications\/([^/]+)$/);
+ if(match&&method==='PATCH')return json(res,200,store.reviewApplication(me.id,match[1],(await body(req)).decision));
  match=path.match(/^\/api\/admin\/members\/([^/]+)\/role$/);
  if(match&&method==='PATCH')return json(res,200,store.setRole(me.id,match[1],(await body(req)).role));
  if(path==='/api/admin/members'&&method==='POST'){

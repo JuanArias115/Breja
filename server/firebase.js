@@ -27,7 +27,7 @@ export function linkGoogleUser(store,claims,language='en',adminEmail=''){
   if(user){fail(user.email===email,'google_account_conflict',409);return user;}
   user=store.get('SELECT * FROM users WHERE email=?',email);
   fail(!user?.firebase_uid,'google_account_conflict',409);
-  if(!user)user=store.addUser({email,name:typeof claims.name==='string'?claims.name.slice(0,100):email.split('@')[0],language},email===adminEmail.toLowerCase()?'admin':'member');
+  if(!user){const initialAdmin=email===adminEmail.toLowerCase();user=store.addUser({email,name:typeof claims.name==='string'?claims.name.slice(0,100):email.split('@')[0],language},initialAdmin?'admin':'member',initialAdmin?'approved':'onboarding');}
   store.run('UPDATE users SET firebase_uid=? WHERE id=?',uid,user.id);store.audit(user.id,'auth.google.link',user.id);
   return store.get('SELECT * FROM users WHERE id=?',user.id);
  });

@@ -7,6 +7,15 @@ export class AppError extends Error {
 export const fail = (condition, code, status = 400, details) => { if (!condition) throw new AppError(code, status, details); };
 export const id = () => randomUUID();
 export const nowISO = () => new Date().toISOString();
+export const FOOTBALL_POSITIONS = ['goalkeeper','centre_back','full_back','defensive_midfielder','central_midfielder','attacking_midfielder','winger','striker'];
+export function birthdayValue(value,today,required=false) {
+  const birthday=text(value??'',10,required);
+  if(birthday){
+    const parsed=new Date(birthday+'T00:00:00Z');
+    fail(/^\d{4}-\d{2}-\d{2}$/.test(birthday)&&Number.isFinite(parsed.getTime())&&parsed.toISOString().slice(0,10)===birthday&&birthday>='1900-01-01'&&birthday<=today,'invalid_birthday');
+  }
+  return birthday;
+}
 export function text(value, max = 160, required = true) {
   fail(typeof value === 'string' && value.trim().length <= max && (!required || value.trim().length > 0), 'invalid_input');
   return value.trim();
@@ -76,6 +85,13 @@ export class Store {
     this.db.exec("CREATE TABLE IF NOT EXISTS profile_photos (user_id TEXT PRIMARY KEY REFERENCES users(id), image_data TEXT NOT NULL, version TEXT NOT NULL)");
     if(!this.all('PRAGMA table_info(users)').some(c=>c.name==='firebase_uid'))this.db.exec('ALTER TABLE users ADD COLUMN firebase_uid TEXT');
     this.db.exec('CREATE UNIQUE INDEX IF NOT EXISTS users_firebase_uid ON users(firebase_uid) WHERE firebase_uid IS NOT NULL');
+    // Existing accounts retain access; only new self-signups require approval.
+    const userColumns=this.all('PRAGMA table_info(users)').map(c=>c.name);
+    for(const [name,definition] of Object.entries({
+      membership_status:"TEXT NOT NULL DEFAULT 'approved' CHECK (membership_status IN ('onboarding','pending','approved','rejected'))",
+      position_secondary:"TEXT NOT NULL DEFAULT ''",
+      application_submitted_at:'TEXT',membership_reviewed_at:'TEXT',membership_reviewed_by:'TEXT REFERENCES users(id)'
+    }))if(!userColumns.includes(name))this.db.exec(`ALTER TABLE users ADD COLUMN ${name} ${definition}`);
     const newsColumns=this.all('PRAGMA table_info(news)').map(c=>c.name);
     for(const column of ['title_es','body_es','image_data'])if(!newsColumns.includes(column))this.db.exec(`ALTER TABLE news ADD COLUMN ${column} TEXT NOT NULL DEFAULT ''`);
     // Additive migration: existing match locations remain historical snapshots.
@@ -96,18 +112,46 @@ export class Store {
   transaction(fn) { this.db.exec('BEGIN IMMEDIATE'); try { const result=fn(); this.db.exec('COMMIT'); return result; } catch(e) { this.db.exec('ROLLBACK'); throw e; } }
   audit(actor,action,entity,detail={}) { this.run('INSERT INTO audit VALUES (?,?,?,?,?,?)',id(),actor,action,entity,JSON.stringify(detail),this.now()); }
   settings() { return Object.fromEntries(this.all('SELECT * FROM settings').map(r=>[r.key,JSON.parse(r.value)])); }
-  addUser(profile,role='member') {
+  addUser(profile,role='member',membershipStatus='approved') {
     fail(['member','admin','dev'].includes(role),'invalid_role');
+    fail(['approved','onboarding'].includes(membershipStatus),'invalid_state');
     const email=text(profile.email,254).toLowerCase();fail(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email),'invalid_email');fail(!this.get('SELECT id FROM users WHERE email=?',email),'email_exists',409);
     const uid=id();
-    this.run('INSERT INTO users (id,email,name,display_name,language,role,created_at) VALUES (?,?,?,?,?,?,?)',uid,email,text(profile.name,100),text(profile.display_name||profile.name,60),['en','de','es'].includes(profile.language)?profile.language:'en',role,this.now());
+    this.run('INSERT INTO users (id,email,name,display_name,language,role,created_at,membership_status) VALUES (?,?,?,?,?,?,?,?)',uid,email,text(profile.name,100),text(profile.display_name||profile.name,60),['en','de','es'].includes(profile.language)?profile.language:'en',role,this.now(),membershipStatus);
     return this.get('SELECT * FROM users WHERE id=?',uid);
   }
   publicUser(user) {const {firebase_uid,...profile}=user;return {...profile,google_linked:!!firebase_uid};}
+  submitApplication(uid,input) {
+    const birthday=birthdayValue(input.birthday,this.now().slice(0,10),true);
+    const position=text(input.position,40),secondary=text(input.position_secondary??'',40,false);
+    fail(FOOTBALL_POSITIONS.includes(position)&&(!secondary||FOOTBALL_POSITIONS.includes(secondary))&&position!==secondary,'invalid_positions');
+    const name=text(input.name,100),displayName=text(input.display_name||name,60);
+    fail(['en','de','es'].includes(input.language),'invalid_input');
+    return this.transaction(()=>{
+      const user=this.get('SELECT * FROM users WHERE id=?',uid);fail(user?.membership_status==='onboarding','application_not_editable',409);
+      this.run("UPDATE users SET name=?,display_name=?,birthday=?,position=?,position_secondary=?,language=?,membership_status='pending',application_submitted_at=? WHERE id=?",name,displayName,birthday,position,secondary,input.language,this.now(),uid);
+      this.audit(uid,'membership.submit',uid);
+      return this.publicUser(this.get('SELECT * FROM users WHERE id=?',uid));
+    });
+  }
+  reviewApplication(actor,uid,decision) {
+    fail(['approved','rejected'].includes(decision),'invalid_input');
+    return this.transaction(()=>{
+      const admin=this.get('SELECT * FROM users WHERE id=?',actor);
+      fail(admin?.role==='admin'&&admin.membership_status==='approved','forbidden',403);
+      const user=this.get('SELECT * FROM users WHERE id=?',uid);fail(user,'not_found',404);
+      if(user.membership_status===decision&&user.application_submitted_at)return this.publicUser(user);
+      fail(user.membership_status==='pending','application_not_pending',409);
+      this.run('UPDATE users SET membership_status=?,membership_reviewed_at=?,membership_reviewed_by=? WHERE id=?',decision,this.now(),actor,uid);
+      this.audit(actor,'membership.'+decision,uid);
+      return this.publicUser(this.get('SELECT * FROM users WHERE id=?',uid));
+    });
+  }
   setRole(actor,uid,role) {
     fail(['member','admin','dev'].includes(role),'invalid_role');
     return this.transaction(()=>{
       const user=this.get('SELECT * FROM users WHERE id=?',uid);fail(user,'not_found',404);
+      fail(user.membership_status==='approved','membership_required',403);
       if(user.role==='admin'&&role!=='admin')fail(this.get("SELECT COUNT(*) n FROM users WHERE role='admin'").n>1,'last_admin',409);
       this.run('UPDATE users SET role=? WHERE id=?',role,uid);
       this.audit(actor,'member.role',uid,{from:user.role,to:role});
