@@ -1,8 +1,8 @@
 export default {
  humanVerification:['Security check','Sicherheitsprüfung','Comprobación de seguridad'],
  human_verified:['Security check complete.','Sicherheitsprüfung abgeschlossen.','Comprobación completada.'],
- human_verification_required:['Complete the security check before continuing.','Schließe die Sicherheitsprüfung ab, bevor du fortfährst.','Completa la comprobación de seguridad antes de continuar.'],
- human_verification_unavailable:['The security check could not load. Please retry.','Die Sicherheitsprüfung konnte nicht geladen werden. Bitte versuche es erneut.','No se pudo cargar la comprobación. Vuelve a intentarlo.'],
+ human_verification_required:['Complete the security check.','Schließe die Sicherheitsprüfung ab.','Completa la verificación de seguridad.'],
+ human_verification_unavailable:['The security check did not load. Select Retry verification.','Die Sicherheitsprüfung wurde nicht geladen. Wähle Prüfung wiederholen.','No se cargó la verificación. Pulsa Reintentar comprobación.'],
  retryVerification:['Retry verification','Prüfung wiederholen','Reintentar comprobación'],
  securityHeading:['Access and email protection','Schutz für Zugang und E-Mails','Protección de acceso y correos'],
  securityEnabled:['Enabled','Aktiv','Activado'],

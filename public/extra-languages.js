@@ -2,24 +2,24 @@
 const rows=`dev|Desenvolvedor|مطوّر
 role|Função|الدور
 editRole|Alterar função|تغيير الدور
-registeredSpots|vagas reservadas|أماكن محجوزة
-memberPermissions|Inscrever-se em jogos, convidar pessoas e consultar a própria conta.|التسجيل في المباريات ودعوة الضيوف وعرض حسابك.
+registeredSpots|jogadores inscritos|لاعبين مسجّلين
+memberPermissions|Inscrever-se em jogos, adicionar convidados quando permitido e consultar a própria conta.|التسجيل في المباريات وإضافة الضيوف عند السماح بذلك وعرض حسابك.
 adminPermissions|Gerir membros, presenças, pagamentos e definições do clube.|إدارة الأعضاء والحضور والمدفوعات وإعدادات النادي.
 devPermissions|Criar e publicar jogos, gerir locais e definições gerais. Sem acesso a contas, pagamentos ou contactos dos membros.|إنشاء المباريات ونشرها وإدارة الملاعب والإعدادات العامة، دون الوصول إلى الحسابات أو المدفوعات أو بيانات اتصال الأعضاء.
 invalid_role|Escolha uma função válida.|اختر دورًا صالحًا.
 last_admin|Mantenha pelo menos um administrador. Nomeie outro primeiro.|يجب الإبقاء على مسؤول واحد على الأقل. عيّن مسؤولًا آخر أولًا.
 clubRanking|O CLUBE|النادي
-topAppearances|Mais participações|الأكثر مشاركة
-rankingHint|Histórico · jogos concluídos disputados|جميع المشاركات في المباريات المكتملة
+topAppearances|Mais jogos disputados|الأكثر لعبًا
+rankingHint|Jogos concluídos|المباريات المكتملة
 playedMatches|disputados|مباريات خاضها
-rankingEmpty|A classificação começa com o primeiro jogo concluído.|يبدأ الترتيب بعد اكتمال أول مباراة.
+rankingEmpty|Ainda não há jogos concluídos.|لا توجد مباريات مكتملة بعد.
 changePhoto|Alterar fotografia|تغيير الصورة
 choosePhoto|Escolher fotografia|اختيار صورة
 photoVisibility|A sua fotografia é visível aos membros do clube.|صورتك مرئية لأعضاء النادي.
 photoCropHint|A fotografia é cortada em quadrado e apresentada num círculo.|تُقصّ الصورة إلى مربع وتُعرض داخل دائرة.
 personalDetails|Dados pessoais|البيانات الشخصية
 addMember|Adicionar membro|إضافة عضو
-manualMemberHint|Crie o perfil agora. A pessoa poderá entrar depois com este email; os jogos e o saldo ficam associados.|أنشئ الملف الآن. يمكن للعضو الدخول لاحقًا بهذا البريد مع الاحتفاظ بمبارياته ورصيده.
+manualMemberHint|O membro poderá entrar com o email indicado aqui.|يمكن للعضو الدخول باستخدام البريد الذي تدخله هنا.
 removePhotoHint|Serão apresentadas as suas iniciais.|ستظهر الأحرف الأولى من اسمك.
 googleSignIn|Continuar com Google|المتابعة باستخدام Google
 orEmail|ou usar email|أو استخدام البريد الإلكتروني
@@ -103,8 +103,8 @@ hello|Olá, {name}.|مرحبًا، {name}.
 intro||
 upcoming|EM BREVE|قريبًا
 hero|Jogo de futebol|مباراة كرة قدم
-join|Quero participar|أرغب بالمشاركة
-joined|Está na lista|أنت مسجّل
+join|Inscrever-me|التسجيل
+joined|Já está inscrito|أنت مسجّل
 pricePer|por jogador|لكل لاعب
 spots|{count} vagas disponíveis|{count} أماكن متاحة
 full|Jogo completo|اكتمل العدد
@@ -113,7 +113,7 @@ viewMatch|Ver jogo|عرض المباراة
 yourBalance|O seu saldo|رصيدك
 outstanding|Por pagar|مستحق
 credit|Crédito disponível|رصيد دائن متاح
-settled|Tudo pago|تمت التسوية
+settled|Sem pagamentos pendentes|لا مبالغ مستحقة
 balanceHint||
 viewAccount|Ver conta|عرض الحساب
 clubPulse|O CLUBE, ESTA SEMANA|النادي هذا الأسبوع
@@ -195,7 +195,7 @@ saved|Guardado|تم الحفظ
 error|Ocorreu um erro. Tente novamente.|حدث خطأ. حاول مجددًا.
 loading|A carregar…|جارٍ التحميل…
 emptyMatches|Ainda não há jogos|لا توجد مباريات بعد
-emptyMatchesHint|A organização ainda não publicou jogos.|لم ينشر المنظّم أي مباراة بعد.
+emptyMatchesHint|Os jogos publicados aparecem aqui.|ستظهر المباريات المنشورة هنا.
 noPlayers|Ainda não há jogadores|لا يوجد لاعبون بعد
 transactions|Movimentos da conta|حركات الحساب
 accountIntro||
@@ -204,15 +204,15 @@ payment|Pagamento|دفعة
 opening|Saldo inicial|الرصيد الافتتاحي
 reversal|Anulação|عكس قيد
 noActivity|Ainda não há movimentos.|لا توجد حركات بعد.
-reportPayment|Fiz um pagamento|قمت بالدفع
-reportHint|O saldo é atualizado após confirmação de receção.|يتحدث الرصيد بعد تأكيد الاستلام.
+reportPayment|Comunicar pagamento|الإبلاغ عن دفعة
+reportHint|Um administrador deve confirmar o pagamento para atualizar o saldo.|يجب أن يؤكد المسؤول الدفعة قبل تحديث رصيدك.
 amount|Montante (€)|المبلغ (€)
 method|Método de pagamento|طريقة الدفع
 cash|Dinheiro|نقدًا
 transfer|Transferência bancária|تحويل مصرفي
 other|Outro|آخر
 note|Nota (opcional)|ملاحظة (اختيارية)
-submitReport|Comunicar pagamento|إبلاغ عن دفعة
+submitReport|Enviar|إرسال
 pendingReport|Pagamento por confirmar|دفعة بانتظار التأكيد
 paid|Recebido|تم الاستلام
 recordPayment|Registar pagamento|تسجيل دفعة
@@ -257,7 +257,7 @@ noStatements|Ainda não há resumos mensais.|لا توجد كشوف شهرية �
 statementsReady|{count} resumos prontos para revisão.|{count} كشوف جاهزة للمراجعة.
 noStatementActivity|Sem saldos ou movimentos neste mês.|لا أرصدة أو حركات لهذا الشهر.
 newsIntro||
-newPost|Publicar notícia|كتابة خبر
+newPost|Publicar notícia|نشر خبر
 pinned|Aviso do clube|إعلان النادي
 body|Mensagem|النص
 pin|Fixar notícia|تثبيت الخبر
@@ -266,20 +266,20 @@ german|Alemão|الألمانية
 noNews|Ainda não há notícias|لا توجد أخبار بعد
 profileIntro||
 name|Nome completo|الاسم الكامل
-displayName|Nome na lista da equipa|الاسم في قائمة الفريق
+displayName|Nome visível aos membros|الاسم الظاهر للأعضاء
 email|Endereço de email|البريد الإلكتروني
 phone|Telefone com indicativo|الهاتف مع رمز البلد
 birthday|Data de nascimento (opcional)|تاريخ الميلاد (اختياري)
 position|Posição preferida (opcional)|المركز المفضّل (اختياري)
 language|Idioma|اللغة
-profilePrivacy|Os contactos e a data de nascimento são privados. Os outros membros veem o nome na lista.|بيانات الاتصال وتاريخ الميلاد خاصة. يرى الأعضاء الآخرون اسمك في القائمة.
+profilePrivacy|Os membros veem o seu nome e fotografia. Só você e os administradores podem ver os contactos e a data de nascimento.|يرى الأعضاء اسمك وصورتك. لا يرى بيانات اتصالك وتاريخ ميلادك إلا أنت والمسؤولون.
 logout|Sair|تسجيل الخروج
 settingsIntro||
-defaults|Valores padrão dos jogos|الإعدادات الافتراضية للمباريات
-settingsHint|Aplica-se aos novos jogos.|تُطبّق على المباريات الجديدة.
+defaults|Definições para novos jogos|إعدادات المباريات الجديدة
+settingsHint|Os jogos já criados mantêm as suas definições.|تحتفظ المباريات الموجودة بإعداداتها.
 paymentInstructions|Instruções de pagamento|تعليمات الدفع
 signin|Entrar|تسجيل الدخول
-signinIntro|Receba um código de acesso por email.|احصل على رمز الدخول عبر البريد الإلكتروني.
+signinIntro|Escolha como entrar.|اختر طريقة تسجيل الدخول.
 sendCode|Enviar código|إرسال الرمز
 code|Código de seis dígitos|رمز من ستة أرقام
 verify|Entrar|دخول
@@ -327,16 +327,16 @@ clipboard_error|Copie a ligação do campo abaixo.|انسخ الرابط من ا
 server_error|O servidor não conseguiu concluir o pedido.|تعذر على الخادم إتمام الطلب.
 network_error|A ligação foi perdida. A última ação pode não ter sido guardada.|انقطع الاتصال. ربما لم يُحفظ الإجراء الأخير.
 joinClub|Pedir adesão ao Breja FC|طلب الانضمام إلى Breja FC
-joinClubHero|O seu lugar na equipa.|مكانك في الفريق.
-joinClubIntro|Conte-nos um pouco sobre si. Um administrador irá rever o pedido antes de dar acesso ao clube.|أخبرنا قليلًا عن نفسك. سيراجع المسؤول طلبك قبل منحك حق الدخول للنادي.
+joinClubHero|Junte-se ao Breja FC|انضم إلى Breja FC
+joinClubIntro|Indique a data de nascimento e as posições preferidas. Um administrador irá rever o pedido.|أدخل تاريخ ميلادك والمراكز المفضّلة لديك. سيراجع المسؤول طلبك.
 membership_onboarding|Complete o pedido|أكمل طلبك
 membership_pending|A aguardar revisão|بانتظار المراجعة
 membership_rejected|Não aceite|غير مقبول
 applicationPending|Pedido enviado|تم إرسال الطلب
 applicationRejected|Pedido não aceite|لم يُقبل الطلب
-applicationPendingHint|Um administrador irá rever os dados. Volte aqui para consultar a decisão.|سيراجع المسؤول بياناتك. يمكنك العودة هنا لمعرفة القرار.
+applicationPendingHint|O seu pedido aguarda aprovação. Pode consultar o estado aqui.|طلبك بانتظار الموافقة. يمكنك متابعة حالته هنا.
 applicationRejectedHint|O pedido não foi aceite. Contacte a organização para mais informações.|لم يُقبل طلبك. تواصل مع منظّم النادي لمزيد من المعلومات.
-applicationNoAccess|As páginas e inscrições ficam disponíveis após a aceitação do pedido.|تتاح صفحات النادي والتسجيلات بعد قبول طلبك.
+applicationNoAccess|Após a aprovação, poderá ver as páginas do clube e inscrever-se nos jogos.|بعد الموافقة، يمكنك عرض صفحات النادي والتسجيل في المباريات.
 dateOfBirth|Data de nascimento|تاريخ الميلاد
 firstPosition|Posição favorita|المركز المفضّل
 secondPosition|Segunda posição (opcional)|المركز الثاني (اختياري)
@@ -353,10 +353,10 @@ position_winger|Extremo|جناح
 position_striker|Avançado|مهاجم
 applicationPrivacy|Apenas você e os administradores podem ver os dados do pedido e a data de nascimento.|لا يرى تفاصيل طلبك وتاريخ ميلادك إلا أنت ومسؤولو النادي.
 submitApplication|Enviar pedido|إرسال الطلب
-applicationSent|O pedido foi enviado para revisão.|تم إرسال طلبك للمراجعة.
+applicationSent|Pedido enviado.|تم إرسال الطلب.
 checkStatus|Atualizar|تحديث
 joinRequests|Pedidos de adesão|طلبات الانضمام
-joinRequestsHint|Reveja os novos jogadores antes de lhes dar acesso ao clube.|راجع طلبات اللاعبين الجدد قبل منحهم حق الدخول.
+joinRequestsHint|Aceite ou rejeite os pedidos de adesão ao clube.|اقبل طلبات الانضمام إلى النادي أو ارفضها.
 noJoinRequests|Sem pedidos por rever.|لا طلبات بانتظار المراجعة.
 rejectedRequests|Pedidos não aceites|الطلبات غير المقبولة
 requestedOn|Pedido em|تاريخ الطلب
@@ -383,8 +383,8 @@ cannot_delete_self|Peça a outro administrador que elimine o seu perfil.|اطل�
 deletion_confirmation_required|Confirme que compreende os efeitos da eliminação.|أكد فهمك لآثار حذف هذا الملف.
 humanVerification|Verificação de segurança|التحقق الأمني
 human_verified|Verificação concluída.|اكتمل التحقق.
-human_verification_required|Conclua a verificação de segurança para continuar.|أكمل التحقق الأمني للمتابعة.
-human_verification_unavailable|Não foi possível carregar a verificação. Tente novamente.|تعذر تحميل التحقق. حاول مجددًا.
+human_verification_required|Conclua a verificação de segurança.|أكمل التحقق الأمني.
+human_verification_unavailable|A verificação não carregou. Selecione Repetir verificação.|لم يتم تحميل التحقق. اختر إعادة المحاولة.
 retryVerification|Repetir verificação|إعادة المحاولة
 securityHeading|Proteção do acesso e dos emails|حماية الدخول والبريد الإلكتروني
 securityEnabled|Ativo|مفعّل
@@ -395,10 +395,10 @@ mailBudgetMonth|Tentativas de envio · 30 dias|محاولات الإرسال · 
 mailBudgetHint|O envio pausa ao atingir o limite. As mensagens aguardam na fila. Os códigos expiram em 10 minutos.|يتوقف الإرسال مؤقتًا عند بلوغ الحد وتنتظر الرسائل في القائمة. تنتهي الرموز بعد 10 دقائق.
 applicationMailNotice|Os administradores recebem um email com cada novo pedido.|يتلقى المسؤولون بريدًا عند وصول طلب جديد.
 health|Health|حالة النظام
-healthIntro|Estado técnico, atividade de segurança e erros recentes.|الحالة التقنية ونشاط الأمان والأخطاء الأخيرة.
+healthIntro|Estado da aplicação, controlo de acesso e envio de emails.|حالة التطبيق والتحقق من الدخول وإرسال البريد.
 healthOperational|Operacional|يعمل بصورة طبيعية
 healthAttention|Requer revisão|يحتاج إلى مراجعة
-healthChecked|Atualizado|آخر تحديث
+healthChecked|Última atualização|آخر تحديث
 healthRefresh|Atualizar estado|تحديث الحالة
 healthLoading|A carregar estado técnico…|جارٍ تحميل الحالة التقنية…
 healthUnavailable|Não foi possível carregar o estado. Tente atualizar.|تعذر تحميل الحالة. حاول التحديث.
@@ -466,7 +466,7 @@ event_mail_retry|Nova tentativa de envio agendada|جُدولت إعادة محا
 event_mail_failed|Envio de email falhou|فشل إرسال البريد
 event_mail_cancelled|Email em fila cancelado|أُلغيت رسالة في القائمة
 event_mail_budget_exhausted|Limite de emails atingido|تم بلوغ حد البريد
-allowGuests|Permitir convidados / indicados|السماح بالضيوف / المدعوين
-guestPermissionHint|Pode alterar a qualquer momento. As inscrições existentes são mantidas.|يمكن التغيير في أي وقت. تبقى التسجيلات الحالية محفوظة.
-guests_disabled|Este jogo não permite adicionar convidados.|لا تسمح هذه المباراة بإضافة ضيوف.`;
+allowGuests|Permitir convidados|السماح بالضيوف
+guestPermissionHint|Pode alterar a qualquer momento. Os convidados já inscritos continuam na lista.|يمكنك تغيير هذا في أي وقت. يبقى الضيوف المسجّلون في القائمة.
+guests_disabled|Não é possível adicionar convidados a este jogo.|لا يمكن إضافة ضيوف إلى هذه المباراة.`;
 export default Object.fromEntries(rows.split('\n').map(row=>{const [key,pt,ar]=row.split('|');return [key,[pt,ar]];}));

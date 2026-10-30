@@ -1,9 +1,9 @@
 export default {
  health:['Health','Health','Health'],
- healthIntro:['Technical status, security activity and recent errors.','Technischer Status, Sicherheitsaktivität und aktuelle Fehler.','Estado técnico, actividad de seguridad y errores recientes.'],
+ healthIntro:['App status, access checks and email delivery.','App-Status, Zugriffsprüfungen und E-Mail-Versand.','Estado de la app, controles de acceso y envío de correos.'],
  healthOperational:['Operational','Betriebsbereit','Operativo'],
  healthAttention:['Needs attention','Prüfung erforderlich','Requiere revisión'],
- healthChecked:['Updated','Aktualisiert','Actualizado'],
+ healthChecked:['Last updated','Zuletzt aktualisiert','Última actualización'],
  healthRefresh:['Refresh health','Status aktualisieren','Actualizar Health'],
  healthLoading:['Loading technical status…','Technischer Status wird geladen…','Cargando estado técnico…'],
  healthUnavailable:['Health could not be loaded. Try refreshing.','Health konnte nicht geladen werden. Bitte aktualisieren.','No se pudo cargar Health. Intenta actualizar.'],
