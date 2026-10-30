@@ -90,7 +90,8 @@ export class Store {
     for(const [name,definition] of Object.entries({
       membership_status:"TEXT NOT NULL DEFAULT 'approved' CHECK (membership_status IN ('onboarding','pending','approved','rejected'))",
       position_secondary:"TEXT NOT NULL DEFAULT ''",
-      application_submitted_at:'TEXT',membership_reviewed_at:'TEXT',membership_reviewed_by:'TEXT REFERENCES users(id)'
+      application_submitted_at:'TEXT',membership_reviewed_at:'TEXT',membership_reviewed_by:'TEXT REFERENCES users(id)',
+      deleted_at:'TEXT',deleted_by:'TEXT REFERENCES users(id)'
     }))if(!userColumns.includes(name))this.db.exec(`ALTER TABLE users ADD COLUMN ${name} ${definition}`);
     const newsColumns=this.all('PRAGMA table_info(news)').map(c=>c.name);
     for(const column of ['title_es','body_es','image_data'])if(!newsColumns.includes(column))this.db.exec(`ALTER TABLE news ADD COLUMN ${column} TEXT NOT NULL DEFAULT ''`);
@@ -121,6 +122,52 @@ export class Store {
     return this.get('SELECT * FROM users WHERE id=?',uid);
   }
   publicUser(user) {const {firebase_uid,...profile}=user;return {...profile,google_linked:!!firebase_uid};}
+  canBootstrapAdmin(email,adminEmail='') {
+    return email===adminEmail.toLowerCase()&&!this.get("SELECT id FROM users WHERE role='admin' AND deleted_at IS NULL");
+  }
+  anonymizeMember(actor,uid) {
+    return this.transaction(()=>{
+      const admin=this.get('SELECT * FROM users WHERE id=?',actor);
+      fail(admin?.role==='admin'&&admin.membership_status==='approved'&&!admin.deleted_at,'forbidden',403);
+      const user=this.get('SELECT * FROM users WHERE id=?',uid);fail(user,'not_found',404);
+      fail(actor!==uid,'cannot_delete_self',409);
+      if(user.deleted_at)return {id:uid,deleted_at:user.deleted_at};
+      if(user.role==='admin')fail(this.get("SELECT COUNT(*) n FROM users WHERE role='admin' AND deleted_at IS NULL").n>1,'last_admin',409);
+      const label='Deleted member · '+uid.slice(0,8),deletedAt=this.now();
+      this.run(`UPDATE users SET email=NULL,firebase_uid=NULL,name=?,display_name=?,phone='',birthday='',position='',position_secondary='',language='en',role='member',membership_status='rejected',application_submitted_at=NULL,membership_reviewed_at=NULL,membership_reviewed_by=NULL,deleted_at=?,deleted_by=? WHERE id=?`,label,label,deletedAt,actor,uid);
+      this.run('DELETE FROM sessions WHERE user_id=?',uid);
+      this.run('DELETE FROM login_codes WHERE email=?',user.email);
+      this.run('DELETE FROM profile_photos WHERE user_id=?',uid);
+      this.run('DELETE FROM outbox WHERE user_id=? OR recipient=?',uid,user.email);
+      this.run("UPDATE payment_reports SET note='' WHERE user_id=?",uid);
+      // Preserve financial facts and identifiers, but remove personal free text.
+      const redactEntry=entry=>{
+        const charge=entry.kind==='charge'?JSON.parse(entry.description):null;
+        return {...entry,payer_name:null,description:charge
+          ?JSON.stringify({reason:charge.reason,guest:charge.guest?'Guest':null,title:charge.title})
+          :({payment:'Payment',reversal:'Reversal',opening:'Opening balance'}[entry.kind]||'Account entry')};
+      };
+      for(const entry of this.all('SELECT * FROM ledger WHERE user_id=?',uid)){
+        const clean=redactEntry(entry);this.run('UPDATE ledger SET description=?,payer_name=NULL WHERE id=?',clean.description,entry.id);
+      }
+      const profile=this.publicUser(this.get('SELECT * FROM users WHERE id=?',uid));
+      for(const row of this.all('SELECT id,snapshot FROM statements WHERE user_id=?',uid)){
+        const snapshot=JSON.parse(row.snapshot);
+        this.run('UPDATE statements SET snapshot=? WHERE id=?',JSON.stringify({...snapshot,user:profile,entries:snapshot.entries.map(redactEntry)}),row.id);
+      }
+      this.run("UPDATE audit SET detail='{}' WHERE actor_id=? OR entity_id=? OR entity_id IN (SELECT id FROM ledger WHERE user_id=?) OR entity_id IN (SELECT id FROM registrations WHERE responsible_id=?) OR entity_id IN (SELECT id FROM payment_reports WHERE user_id=?)",uid,uid,uid,uid,uid);
+      this.run("UPDATE registrations SET guest_name='Guest' WHERE responsible_id=? AND guest_name IS NOT NULL",uid);
+      const affected=new Set();
+      for(const registration of this.all(`SELECT r.*,m.starts_at,m.cancel_hours FROM registrations r JOIN matches m ON m.id=r.match_id WHERE (r.responsible_id=? OR r.user_id=?) AND m.status='open' AND m.starts_at>? AND r.status IN ('confirmed','waitlist','offered')`,uid,uid,deletedAt)){
+        const late=registration.status==='confirmed'&&new Date(registration.starts_at)-this.clock()<registration.cancel_hours*3600000;
+        this.run('UPDATE registrations SET status=?,cancelled_at=?,offer_until=NULL WHERE id=?',late?'late_cancelled':'cancelled',deletedAt,registration.id);
+        affected.add(registration.match_id);
+      }
+      for(const mid of affected)this.promote(mid);
+      this.audit(actor,'member.anonymize',uid);
+      return {id:uid,deleted_at:deletedAt};
+    });
+  }
   submitApplication(uid,input) {
     const birthday=birthdayValue(input.birthday,this.now().slice(0,10),true);
     const position=text(input.position,40),secondary=text(input.position_secondary??'',40,false);
@@ -128,7 +175,7 @@ export class Store {
     const name=text(input.name,100),displayName=text(input.display_name||name,60);
     fail(['en','de','es'].includes(input.language),'invalid_input');
     return this.transaction(()=>{
-      const user=this.get('SELECT * FROM users WHERE id=?',uid);fail(user?.membership_status==='onboarding','application_not_editable',409);
+      const user=this.get('SELECT * FROM users WHERE id=?',uid);fail(user?.membership_status==='onboarding'&&!user.deleted_at,'application_not_editable',409);
       this.run("UPDATE users SET name=?,display_name=?,birthday=?,position=?,position_secondary=?,language=?,membership_status='pending',application_submitted_at=? WHERE id=?",name,displayName,birthday,position,secondary,input.language,this.now(),uid);
       this.audit(uid,'membership.submit',uid);
       return this.publicUser(this.get('SELECT * FROM users WHERE id=?',uid));
@@ -138,8 +185,8 @@ export class Store {
     fail(['approved','rejected'].includes(decision),'invalid_input');
     return this.transaction(()=>{
       const admin=this.get('SELECT * FROM users WHERE id=?',actor);
-      fail(admin?.role==='admin'&&admin.membership_status==='approved','forbidden',403);
-      const user=this.get('SELECT * FROM users WHERE id=?',uid);fail(user,'not_found',404);
+      fail(admin?.role==='admin'&&admin.membership_status==='approved'&&!admin.deleted_at,'forbidden',403);
+      const user=this.get('SELECT * FROM users WHERE id=?',uid);fail(user&&!user.deleted_at,'not_found',404);
       if(user.membership_status===decision&&user.application_submitted_at)return this.publicUser(user);
       fail(user.membership_status==='pending','application_not_pending',409);
       this.run('UPDATE users SET membership_status=?,membership_reviewed_at=?,membership_reviewed_by=? WHERE id=?',decision,this.now(),actor,uid);
@@ -151,7 +198,7 @@ export class Store {
     fail(['member','admin','dev'].includes(role),'invalid_role');
     return this.transaction(()=>{
       const user=this.get('SELECT * FROM users WHERE id=?',uid);fail(user,'not_found',404);
-      fail(user.membership_status==='approved','membership_required',403);
+      fail(user.membership_status==='approved'&&!user.deleted_at,'membership_required',403);
       if(user.role==='admin'&&role!=='admin')fail(this.get("SELECT COUNT(*) n FROM users WHERE role='admin'").n>1,'last_admin',409);
       this.run('UPDATE users SET role=? WHERE id=?',role,uid);
       this.audit(actor,'member.role',uid,{from:user.role,to:role});
@@ -159,7 +206,7 @@ export class Store {
     });
   }
   leaderboard() {
-    const rows=this.all(`SELECT u.id,u.display_name,COUNT(*) appearances FROM registrations r JOIN matches m ON m.id=r.match_id JOIN users u ON u.id=r.user_id WHERE m.status='closed' AND r.attendance='played' AND r.guest_name IS NULL AND r.status='confirmed' GROUP BY u.id ORDER BY appearances DESC,u.display_name COLLATE NOCASE,u.id LIMIT 5`);
+    const rows=this.all(`SELECT u.id,u.display_name,COUNT(*) appearances FROM registrations r JOIN matches m ON m.id=r.match_id JOIN users u ON u.id=r.user_id WHERE u.deleted_at IS NULL AND m.status='closed' AND r.attendance='played' AND r.guest_name IS NULL AND r.status='confirmed' GROUP BY u.id ORDER BY appearances DESC,u.display_name COLLATE NOCASE,u.id LIMIT 5`);
     let previous=-1,rank=0;return rows.map((row,index)=>{if(row.appearances!==previous)rank=index+1;previous=row.appearances;return {...row,rank};});
   }
   match(mid) { const m=this.get('SELECT * FROM matches WHERE id=?',mid); fail(m,'not_found',404); return m; }
@@ -192,7 +239,7 @@ export class Store {
     const m=this.match(mid); if(m.status!=='open'||m.starts_at<=this.now())return;
     this.run("UPDATE registrations SET status='expired',offer_until=NULL WHERE match_id=? AND status='offered' AND offer_until<=?",mid,this.now());
     while(this.occupancy(mid)<m.capacity) {
-      const r=this.get("SELECT * FROM registrations WHERE match_id=? AND status='waitlist' ORDER BY joined_at,rowid LIMIT 1",mid);if(!r)break;
+      const r=this.get("SELECT * FROM registrations WHERE match_id=? AND status='waitlist' AND responsible_id IN (SELECT id FROM users WHERE deleted_at IS NULL) ORDER BY joined_at,rowid LIMIT 1",mid);if(!r)break;
       const until=new Date(Math.min(this.clock().getTime()+2*3600000,new Date(m.starts_at).getTime())).toISOString();
       this.run("UPDATE registrations SET status='offered',offer_until=? WHERE id=?",until,r.id);
       const u=this.get('SELECT * FROM users WHERE id=?',r.responsible_id);
@@ -246,20 +293,21 @@ export class Store {
     });
   }
   payment(actor,input) {
-    const amount=cents(input.amount_cents);fail(amount>0,'invalid_amount');fail(this.get('SELECT id FROM users WHERE id=?',input.user_id),'not_found',404);
+    const amount=cents(input.amount_cents);fail(amount>0,'invalid_amount');const account=this.get('SELECT id,deleted_at FROM users WHERE id=?',input.user_id);fail(account,'not_found',404);
     fail(['cash','transfer','other'].includes(input.method),'invalid_input');const received=new Date(input.occurred_at||this.now());fail(Number.isFinite(received.getTime())&&received<=this.clock(),'invalid_date');
     let matchId=null;
     if(input.registration_id){const r=this.get('SELECT * FROM registrations WHERE id=?',input.registration_id);fail(r&&r.responsible_id===input.user_id,'invalid_input');matchId=r.match_id;}
     const key=text(input.request_key,100);const existing=this.get('SELECT * FROM ledger WHERE request_key=?',key);if(existing)return existing;
-    const lid=id();this.run(`INSERT INTO ledger (id,user_id,match_id,registration_id,kind,amount_cents,description,occurred_at,created_at,created_by,method,payer_name,request_key) VALUES (?,?,?,?,'payment',?,?,?,?,?,?,?,?)`,lid,input.user_id,matchId,input.registration_id||null,-amount,text(input.note||'Payment',300),received.toISOString(),this.now(),actor,input.method,text(input.payer_name||'',100,false),key);
+    const lid=id();this.run(`INSERT INTO ledger (id,user_id,match_id,registration_id,kind,amount_cents,description,occurred_at,created_at,created_by,method,payer_name,request_key) VALUES (?,?,?,?,'payment',?,?,?,?,?,?,?,?)`,lid,input.user_id,matchId,input.registration_id||null,-amount,account.deleted_at?'Payment':text(input.note||'Payment',300),received.toISOString(),this.now(),actor,input.method,account.deleted_at?'':text(input.payer_name||'',100,false),key);
     this.audit(actor,'payment.record',lid,{amount});return this.get('SELECT * FROM ledger WHERE id=?',lid);
   }
   reverse(actor,lid,reason) {
     const l=this.get('SELECT * FROM ledger WHERE id=?',lid);fail(l&&l.kind!=='reversal','invalid_input');fail(!this.get('SELECT id FROM ledger WHERE reverses_id=?',lid),'already_reversed',409);
+    if(this.get('SELECT deleted_at FROM users WHERE id=?',l.user_id)?.deleted_at)reason='Reversal';
     this.run(`INSERT INTO ledger (id,user_id,match_id,registration_id,kind,amount_cents,description,occurred_at,created_at,created_by,reverses_id) VALUES (?,?,?,?,'reversal',?,?,?,?,?,?)`,id(),l.user_id,l.match_id,l.registration_id,-l.amount_cents,text(reason,300),this.now(),this.now(),actor,l.id);this.audit(actor,'ledger.reverse',lid,{reason});
   }
   balance(uid,until=null) { return this.get('SELECT COALESCE(SUM(amount_cents),0) balance FROM ledger WHERE user_id=?'+(until?' AND occurred_at<?':''),... (until?[uid,until]:[uid])).balance; }
-  enqueue(user,kind,key,subject,body) { if(!user?.email)return;this.run('INSERT OR IGNORE INTO outbox (id,user_id,recipient,subject,body,kind,dedupe_key,created_at) VALUES (?,?,?,?,?,?,?,?)',id(),user.id,user.email,subject,body,kind,key,this.now()); }
+  enqueue(user,kind,key,subject,body) { if(!user?.email||user.deleted_at)return;this.run('INSERT OR IGNORE INTO outbox (id,user_id,recipient,subject,body,kind,dedupe_key,created_at) VALUES (?,?,?,?,?,?,?,?)',id(),user.id,user.email,subject,body,kind,key,this.now()); }
   statementPreview(month) {
     fail(/^20\d{2}-(0[1-9]|1[0-2])$/.test(month),'invalid_date');const tz=this.settings().timezone;
     // Match dates and payments are grouped by the club's local calendar month.

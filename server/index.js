@@ -20,14 +20,15 @@ const hash=v=>createHash('sha256').update(v).digest('hex'),codeHash=(email,code)
 const json=(res,status,data)=>{res.writeHead(status,{'Content-Type':'application/json; charset=utf-8','Cache-Control':'no-store'});res.end(JSON.stringify(data));};
 const cookie=(res,token,clear=false)=>res.setHeader('Set-Cookie',`breja_session=${clear?'':token}; HttpOnly; SameSite=Lax; Path=/; Max-Age=${clear?0:60*60*24*30}${production?'; Secure':''}`);
 const session=(res,uid)=>{const token=randomBytes(32).toString('base64url');store.run('INSERT INTO sessions VALUES (?,?,?)',hash(token),uid,new Date(Date.now()+30*86400000).toISOString());cookie(res,token);};
-function user(req){const token=req.headers.cookie?.match(/(?:^|; )breja_session=([^;]+)/)?.[1];if(!token)return null;return store.get('SELECT u.* FROM sessions s JOIN users u ON s.user_id=u.id WHERE s.token_hash=? AND s.expires_at>?',hash(token),store.now())||null;}
-async function body(req,max=65536){let result='';for await(const chunk of req){result+=chunk;fail(Buffer.byteLength(result)<=max,'request_too_large',413);}try{return JSON.parse(result||'{}');}catch{throw new AppError('invalid_json');}}
+function user(req){const token=req.headers.cookie?.match(/(?:^|; )breja_session=([^;]+)/)?.[1];if(!token)return null;return store.get('SELECT u.* FROM sessions s JOIN users u ON s.user_id=u.id WHERE s.token_hash=? AND s.expires_at>? AND u.deleted_at IS NULL',hash(token),store.now())||null;}
+async function body(req,max=65536){let result='';for await(const chunk of req){result+=chunk;fail(Buffer.byteLength(result)<=max,'request_too_large',413);}if(req.accountId)fail(store.get('SELECT id FROM users WHERE id=? AND deleted_at IS NULL',req.accountId),'unauthorized',401);try{return JSON.parse(result||'{}');}catch{throw new AppError('invalid_json');}}
 const limits=new Map();
 function throttle(key,max=100,window=60000){const now=Date.now();let slot=limits.get(key);if(!slot||slot.expires<now){slot={n:0,expires:now+window};limits.set(key,slot);}fail(++slot.n<=max,'rate_limited',429);}
 let mailing=false;
 async function deliverOutbox(){
   if(!production||mailing)return;mailing=true;
-  try{for(const mail of store.all("SELECT * FROM outbox WHERE status='queued' ORDER BY created_at LIMIT 10")){
+  try{for(const queued of store.all("SELECT id FROM outbox WHERE status='queued' ORDER BY created_at LIMIT 10")){
+    const mail=store.get("SELECT * FROM outbox WHERE id=? AND status='queued'",queued.id);if(!mail)continue;
     try{const response=await fetch('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${process.env.RESEND_API_KEY}`,'Content-Type':'application/json','Idempotency-Key':mail.id},body:JSON.stringify({from:process.env.MAIL_FROM,to:[mail.recipient],subject:mail.subject,text:mail.body+'\n\n'+origin+(mail.kind==='statement'?'/account':'/')}),signal:AbortSignal.timeout(15000)});
       if(!response.ok)throw new Error('email_provider_'+response.status);
       store.run("UPDATE outbox SET status='sent',sent_at=?,error=NULL WHERE id=?",store.now(),mail.id);
@@ -47,7 +48,7 @@ function bootstrap(me){
   const visibleSettings=developer?Object.fromEntries(['price_cents','capacity','cancel_hours','timezone'].map(key=>[key,settings[key]])):settings;
   return {me:store.publicUser(me),config,settings:visibleSettings,leaderboard:store.leaderboard(),photos:store.all("SELECT user_id,'/api/members/'||user_id||'/photo?v='||version url FROM profile_photos"),venues:store.all('SELECT * FROM venues WHERE archived=0 OR ? ORDER BY archived,name',manager?1:0),matches:store.all("SELECT * FROM matches WHERE status<>'draft' OR created_by=? OR ? ORDER BY starts_at DESC",me.id,manager?1:0).map(m=>visibleMatch(m,me)),news:store.all("SELECT id,title_en,title_de,title_es,body_en,body_de,body_es,pinned,created_at,CASE WHEN image_data<>'' THEN '/api/news/'||id||'/image' ELSE '' END image_url FROM news ORDER BY pinned DESC,created_at DESC"),...(developer?{}:{account:{balance:store.balance(me.id),ledger:store.all('SELECT * FROM ledger WHERE user_id=? ORDER BY occurred_at DESC,created_at DESC',me.id),reports:store.all('SELECT * FROM payment_reports WHERE user_id=? ORDER BY created_at DESC',me.id)},statements:store.all('SELECT id,month,snapshot,created_at FROM statements WHERE user_id=? ORDER BY month DESC',me.id).map(r=>({...r,snapshot:JSON.parse(r.snapshot)}))})};
 }
-function adminData(){return {applications:store.all("SELECT * FROM users WHERE membership_status IN ('pending','rejected') ORDER BY application_submitted_at").map(u=>store.publicUser(u)),stats:{received:store.get("SELECT COALESCE(-SUM(l.amount_cents),0) total FROM ledger l LEFT JOIN ledger original ON original.id=l.reverses_id WHERE l.kind='payment' OR (l.kind='reversal' AND original.kind='payment')").total},members:store.all("SELECT * FROM users WHERE membership_status='approved' ORDER BY display_name").map(u=>({...store.publicUser(u),balance:store.balance(u.id)})),ledger:store.all('SELECT l.*,u.display_name FROM ledger l JOIN users u ON l.user_id=u.id ORDER BY l.created_at DESC LIMIT 200'),reports:store.all("SELECT r.*,u.display_name FROM payment_reports r JOIN users u ON r.user_id=u.id WHERE r.status='pending' ORDER BY r.created_at"),outbox:store.all("SELECT id,user_id,recipient,subject,body,kind,status,error,created_at,sent_at FROM outbox WHERE kind<>'login' ORDER BY created_at DESC LIMIT 100"),statements:store.all('SELECT s.id,s.month,s.created_at,u.display_name FROM statements s JOIN users u ON s.user_id=u.id ORDER BY s.created_at DESC'),audit:store.all('SELECT a.*,u.display_name FROM audit a LEFT JOIN users u ON a.actor_id=u.id ORDER BY a.created_at DESC LIMIT 40')};}
+function adminData(){return {applications:store.all("SELECT * FROM users WHERE membership_status IN ('pending','rejected') AND deleted_at IS NULL ORDER BY application_submitted_at").map(u=>store.publicUser(u)),stats:{received:store.get("SELECT COALESCE(-SUM(l.amount_cents),0) total FROM ledger l LEFT JOIN ledger original ON original.id=l.reverses_id WHERE l.kind='payment' OR (l.kind='reversal' AND original.kind='payment')").total},archivedMembers:store.all('SELECT id,display_name,deleted_at FROM users WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC').map(u=>({...u,balance:store.balance(u.id)})),members:store.all("SELECT * FROM users WHERE membership_status='approved' AND deleted_at IS NULL ORDER BY display_name").map(u=>({...store.publicUser(u),balance:store.balance(u.id)})),ledger:store.all('SELECT l.*,u.display_name FROM ledger l JOIN users u ON l.user_id=u.id ORDER BY l.created_at DESC LIMIT 200'),reports:store.all("SELECT r.*,u.display_name FROM payment_reports r JOIN users u ON r.user_id=u.id WHERE r.status='pending' ORDER BY r.created_at"),outbox:store.all("SELECT id,user_id,recipient,subject,body,kind,status,error,created_at,sent_at FROM outbox WHERE kind<>'login' ORDER BY created_at DESC LIMIT 100"),statements:store.all('SELECT s.id,s.month,s.created_at,u.display_name FROM statements s JOIN users u ON s.user_id=u.id ORDER BY s.created_at DESC'),audit:store.all('SELECT a.*,u.display_name FROM audit a LEFT JOIN users u ON a.actor_id=u.id ORDER BY a.created_at DESC LIMIT 40')};}
 
 export async function api(req,res,url){
  const path=url.pathname,method=req.method,me=user(req);
@@ -77,13 +78,13 @@ export async function api(req,res,url){
    const input=await body(req),email=text(input.email,254).toLowerCase(),code=text(input.code,6);const login=store.get('SELECT * FROM login_codes WHERE email=?',email);
    fail(login&&login.expires_at>store.now()&&login.attempts<5,'invalid_code',401);store.run('UPDATE login_codes SET attempts=attempts+1 WHERE email=?',email);
    fail(timingSafeEqual(Buffer.from(login.code_hash),Buffer.from(codeHash(email,code))),'invalid_code',401);
-   let u=store.get('SELECT * FROM users WHERE email=?',email);if(!u){const initialAdmin=email===process.env.ADMIN_EMAIL?.toLowerCase();u=store.addUser(JSON.parse(login.profile),initialAdmin?'admin':'member',initialAdmin?'approved':'onboarding');}
+   let u=store.get('SELECT * FROM users WHERE email=?',email);if(!u){const initialAdmin=store.canBootstrapAdmin(email,process.env.ADMIN_EMAIL||'');u=store.addUser(JSON.parse(login.profile),initialAdmin?'admin':'member',initialAdmin?'approved':'onboarding');}
    store.run('DELETE FROM login_codes WHERE email=?',email);session(res,u.id);return json(res,200,{ok:true});
  }
  if(path==='/api/auth/development'&&method==='POST'){
    fail(!production,'not_found',404);const input=await body(req);fail(['member','admin'].includes(input.role),'invalid_role');const email=input.role==='member'?'sam@example.test':'alex@example.test';session(res,store.get('SELECT id FROM users WHERE email=?',email).id);return json(res,200,{ok:true});
  }
- fail(me,'unauthorized',401);
+ fail(me,'unauthorized',401);req.accountId=me.id;
  if(path==='/api/auth/logout'&&method==='POST'){const token=req.headers.cookie?.match(/breja_session=([^;]+)/)?.[1];if(token)store.run('DELETE FROM sessions WHERE token_hash=?',hash(token));cookie(res,'',true);return json(res,200,{ok:true});}
  if(path==='/api/membership/application'&&method==='POST')return json(res,200,store.submitApplication(me.id,await body(req)));
  // All private club APIs, including media and profile edits, require approval.
@@ -123,6 +124,8 @@ export async function api(req,res,url){
  if(match&&method==='PATCH')return json(res,200,store.reviewApplication(me.id,match[1],(await body(req)).decision));
  match=path.match(/^\/api\/admin\/members\/([^/]+)\/role$/);
  if(match&&method==='PATCH')return json(res,200,store.setRole(me.id,match[1],(await body(req)).role));
+ match=path.match(/^\/api\/admin\/members\/([^/]+)$/);
+ if(match&&method==='DELETE'){fail((await body(req)).confirm===true,'deletion_confirmation_required');return json(res,200,store.anonymizeMember(me.id,match[1]));}
  if(path==='/api/admin/members'&&method==='POST'){
   const p=await body(req);fail(['en','de','es'].includes(p.language),'invalid_input');const member=store.addUser(p,'member');store.audit(me.id,'member.create',member.id);return json(res,201,store.publicUser(member));
  }

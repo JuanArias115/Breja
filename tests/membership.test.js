@@ -103,10 +103,10 @@ test('Google uses the same admission flow, retains manual approvals, and exempts
  }finally{db.db.close();}
 });
 
-test('verified bootstrap administrator can still access the club through email',async()=>{
+test('configured bootstrap email cannot bypass admission when an administrator already exists',async()=>{
  const cookie=await signup('bootstrap-admin@example.test'),data=(await call('/bootstrap',cookie)).json();
- assert.equal(data.me.role,'admin');assert.equal(data.me.membership_status,'approved');assert.ok(data.matches);
- assert.equal((await call('/admin',cookie)).status,200);
+ assert.equal(data.me.role,'member');assert.equal(data.me.membership_status,'onboarding');assert.equal(data.matches,undefined);
+ assert.equal((await call('/admin',cookie)).status,403);
 });
 
 test('migration preserves existing members, sessions and balances, and application decisions survive restarts',t=>{

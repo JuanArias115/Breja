@@ -75,7 +75,7 @@ El primer acceso con Google o con código de correo abre una **solicitud de ingr
 
 En **Miembros → Solicitudes de ingreso**, un administrador revisa el nombre, correo, fecha de nacimiento y posiciones antes de **aceptar o rechazar**. La aceptación permite entrar como miembro con la misma sesión al pulsar Actualizar; el rechazo mantiene el acceso bloqueado y se conserva en el historial de solicitudes. Volver a iniciar sesión no reinicia la solicitud ni evita la decisión. No se envían correos adicionales al enviar o revisar solicitudes.
 
-Las cuentas existentes conservan su acceso y sus datos. Las altas manuales mediante **Miembros → Añadir miembro** ya están aprobadas por el administrador. El administrador inicial definido en `ADMIN_EMAIL` queda aprobado al verificar por primera vez su identidad, para poder gestionar las solicitudes. La fecha de nacimiento y los datos de la solicitud son visibles solo para la persona y los administradores.
+Las cuentas existentes conservan su acceso y sus datos. Las altas manuales mediante **Miembros → Añadir miembro** ya están aprobadas por el administrador. El administrador inicial definido en `ADMIN_EMAIL` queda aprobado al verificar por primera vez su identidad si todavía no existe ningún administrador, para poder gestionar las solicitudes. La fecha de nacimiento y los datos de la solicitud son visibles solo para la persona y los administradores.
 
 Ya no existe una lista importada del Excel ni un proceso manual para vincular nombres. La migración retira esa lista sin borrar cuentas registradas, sesiones, partidos o movimientos. El Excel original se conserva localmente y no se incluye en Git.
 
@@ -90,6 +90,18 @@ En **Miembros → Cambiar rol**, un administrador puede asignar:
 El desarrollador no recibe saldos, movimientos, resúmenes, instrucciones de pago ni contactos de otros miembros. No puede inscribirse, confirmar asistencia, cancelar partidos o realizar operaciones económicas. Los permisos se comprueban en cada petición; los cambios de rol se aplican a las sesiones existentes. Siempre debe quedar un administrador.
 
 El contador de Inicio corresponde a las plazas reservadas del próximo partido. Al volver a cargar la vista tras su inicio, se muestra el siguiente partido disponible; el anterior queda en **Partidos → Anteriores**. Al finalizar, el administrador revisa la asistencia y cierra el partido: se generan los cargos y se actualiza el ranking de participaciones. El historial se conserva.
+
+## Baja y anonimización de perfiles
+
+En **Miembros → Eliminar y anonimizar perfil**, un administrador puede dar de baja otro perfil, incluidas solicitudes pendientes o rechazadas. La confirmación exige marcar que se entienden los efectos. No se permite eliminar la propia cuenta; siempre queda un administrador. La API exige sesión administradora, origen válido y `confirm: true`.
+
+La baja es una operación atómica: conserva la fila y su identificador, añade `deleted_at`/`deleted_by`, reemplaza el nombre por una referencia `Deleted member · …`, vacía correo, teléfono, nacimiento y posiciones, desvincula el UID de Firebase y borra foto, sesiones y códigos pendientes. Se retiran de la base los correos guardados de esa cuenta y sus notas personales en pagos, reportes y auditoría vinculada. También se actualizan las copias del perfil en extractos. Los nombres de invitados dependientes se sustituyen por `Guest`, conservando cada inscripción por su identificador.
+
+**Los pagos, cargos, anulaciones, métodos, fechas, vínculos e importes se conservan.** Los totales históricos de los extractos no se recalculan. La sección **Perfiles dados de baja** muestra la referencia y el saldo; permite registrar pagos para liquidarlo. Los totales de Pagos incluyen las bajas. Los pagos y anulaciones posteriores de estas cuentas no guardan nombres de pagadores ni notas personales.
+
+Las inscripciones futuras de la persona y sus invitados se cancelan siguiendo el plazo habitual: una plaza confirmada fuera del plazo gratuito queda como cancelación tardía y se cobra al cerrar el partido. Las listas de espera avanzan. Las participaciones pasadas se conservan; el perfil deja de aparecer en el ranking. Volver a entrar con Google o correo crea una cuenta distinta que debe enviar una nueva solicitud, sin heredar permisos ni movimientos del perfil anterior.
+
+Es una baja lógica con limpieza de los datos vinculados en la aplicación, sin opción de restauración desde la interfaz. No elimina la identidad del proveedor Firebase/Google, mensajes ya entregados o en curso de envío, exportaciones ni copias de seguridad anteriores. Tampoco busca nombres mencionados libremente en noticias, títulos de partidos o textos de otras cuentas. Las copias de seguridad deben tratarse por separado; restaurar una copia anterior también restaura los datos que contenía. No equivale a una purga física de los archivos SQLite.
 
 ## Datos y estructura
 
@@ -140,4 +152,4 @@ El despliegue público está disponible en https://breja.juanariasdev.com, con H
 
 WhatsApp abre el mensaje preparado para que el organizador lo envíe. **El envío automático por WhatsApp y el cobro online no están integrados.** Los pagos se registran como dinero recibido, y se pueden indicar transferencias en las instrucciones del club.
 
-Las correcciones de un mes ya resumido se conservan en la cuenta actual. Los resúmenes guardados son instantáneas y no se reescriben silenciosamente. No se han implementado reprogramaciones de partidos con asistentes; para esta primera versión se cancela y se crea una nueva convocatoria.
+Las correcciones de un mes ya resumido se conservan en la cuenta actual. Los resúmenes guardados conservan sus importes como instantáneas; una baja solo limpia los datos personales y notas de la copia, sin alterar sus totales. No se han implementado reprogramaciones de partidos con asistentes; para esta primera versión se cancela y se crea una nueva convocatoria.
