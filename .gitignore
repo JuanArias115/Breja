@@ -1,0 +1,9 @@
+node_modules/
+.env
+.env.*
+!.env.example
+.data/
+test-results/
+*.log
+*.sqlite*
+Participation 2026.xlsx

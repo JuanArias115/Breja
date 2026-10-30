@@ -1,0 +1,38 @@
+/* Shared form and dialog treatment. */
+dialog{width:min(650px,calc(100% - 28px));border:1px solid #d3decb;border-radius:24px;background:#fbfcf8;box-shadow:0 28px 100px #14270c40,0 1px 0 #ffffff inset}
+dialog[open]{animation:dialog-enter .22s ease-out}
+dialog::backdrop{background:#14221080;backdrop-filter:blur(7px)}
+.dialog-head{padding:22px 26px;background:linear-gradient(115deg,#f1f5e8,#fbfcf8);border-bottom:1px solid #e0e7d7}
+.dialog-heading{display:flex;align-items:center;gap:14px;min-width:0}
+.dialog-mark{display:grid;place-items:center;flex:none;width:46px;height:46px;background:#34462b;border-radius:14px;color:#e6efb7;box-shadow:0 5px 12px #20361715}
+.dialog-mark svg{width:23px;height:23px}.dialog-club{display:block;font-size:8px;font-weight:600;letter-spacing:1.7px;color:#82916f;margin-bottom:5px}
+.dialog-head h2{font-size:22px;font-weight:550;letter-spacing:-.6px;line-height:1.2;margin:0}
+.dialog-head>.icon-button{background:#ffffffb8;border:1px solid #e0e7d7;border-radius:50%;flex:none}
+.dialog-body{padding:26px}.dialog-body .form-grid{gap:20px}.field>span{font-size:12px;color:#526249;font-weight:550}
+.field input,.field select,.field textarea{background:#fff;border:1px solid #dce3d4;box-shadow:0 2px 4px #293d1810;border-radius:11px;padding:12px 14px;transition:border-color .16s,box-shadow .16s;font-size:14px}
+.field input:hover,.field select:hover,.field textarea:hover{border-color:#b3c2a3}
+.field input:focus,.field select:focus,.field textarea:focus{outline:0;border-color:#839c66;box-shadow:0 0 0 4px #a9bd891f;background:#fff}
+.field input[readonly]{box-shadow:none;background:#edf1e7;border-style:dashed;color:#7c8870}
+.field textarea{min-height:128px;line-height:1.7}.field small{color:#7e8a72;font-size:11px}
+.dialog-body .form-actions{position:sticky;bottom:-26px;z-index:2;margin-top:26px;padding:18px 0 2px;background:#fbfcf8;border-top:1px solid #dfe6d6}
+.dialog-body .form-actions .btn-primary{box-shadow:0 4px 12px #6e82351c}.dialog-body .notice{border:1px solid #e4e8cf;border-radius:12px;padding:15px;font-size:12px}
+.dialog-body .hint{font-size:12px}.check{font-size:13px}.check input{border-radius:4px;flex:none}
+.form-step{display:flex;align-items:center;gap:10px;font-size:12px;color:#56664b;font-weight:550;padding-top:10px;border-top:1px solid #e4e9dc;margin-top:5px}
+.form-step:first-child{border-top:0;padding-top:0;margin-top:0}.form-step span{font-size:9px;border:1px solid #dce4d2;background:#f0f4e9;border-radius:7px;padding:5px 7px;color:#7e9269}
+.form-section-title{display:flex;align-items:center;gap:10px;padding-bottom:14px;border-bottom:1px solid var(--line)}.form-section-title h2{font-size:18px;font-weight:500;margin:0}.form-section-title svg{color:#8d9f75;width:21px;height:21px}
+.avatar{overflow:hidden;flex:none}.avatar img{display:block;width:100%;height:100%;object-fit:cover;border-radius:inherit}
+.profile-layout{display:grid;grid-template-columns:260px minmax(0,1fr);gap:24px;align-items:start}.profile-summary{text-align:center;background:linear-gradient(165deg,#f0f4e6 0%,#fff 65%);padding:32px 20px}
+.profile-portrait{display:flex;justify-content:center}.profile-portrait .avatar{height:112px;width:112px;border:6px solid #fff;border-radius:50%;font-size:30px;background:#dae4c9;color:#526542;box-shadow:0 7px 20px #354a1c17}
+.profile-summary h2{font-size:24px;font-weight:500;letter-spacing:-.5px;margin:20px 0 7px}.profile-summary .hint{overflow-wrap:anywhere}.profile-summary .badge{margin-top:8px}.profile-photo-actions{display:grid;gap:6px;margin:25px 0 14px}
+.photo-preview{padding:16px 0}.photo-preview .avatar{width:180px;height:180px;font-size:50px}.profile-layout .notice{display:flex;align-items:flex-start;gap:10px}.profile-layout .notice svg{width:18px;height:18px;flex:none;margin-top:2px}
+.ranking-symbol{display:grid;place-items:center;width:40px;height:40px;border-radius:12px;background:#edf2df;color:#758957}.ranking-symbol svg{width:22px;height:22px}
+.leaderboard-card .eyebrow{font-size:8px;margin-bottom:7px}.leaderboard-card>.hint{margin:-3px 0 20px}.ranking-row{display:flex;align-items:center;gap:13px;padding:13px 0;border-bottom:1px solid #edf0e7}.ranking-row:last-child{border-bottom:0}
+.ranking-number{font-size:12px;font-variant-numeric:tabular-nums;color:#9eaa90;width:22px;flex:none}.ranking-row .person{flex:1}.ranking-leader .ranking-number{color:#7f8f3d;font-weight:600}.ranking-leader .avatar{background:#e5ebc8;color:#63753d}
+.ranking-count{text-align:right;flex:none}.ranking-count strong{font-size:23px;font-weight:500;letter-spacing:-.6px;color:#4a5e3b;display:block}.ranking-count small{font-size:9px;color:#93a084}
+.role-descriptions{display:grid;gap:14px;padding:18px;border:1px solid #e3e8da;border-radius:14px;background:#f8faf4}.role-descriptions strong{font-size:12px}.role-descriptions .hint{margin:5px 0 0}
+.google-button{width:100%;justify-content:center;background:#fff;border:1px solid #d6ddcf;font-size:13px;gap:12px}.google-g{font-family:Arial,sans-serif;font-weight:700;font-size:19px;color:#4285f4}.auth-or{display:flex;align-items:center;gap:12px;font-size:11px;color:#909c83;margin:22px 0}.auth-or:before,.auth-or:after{content:'';height:1px;background:#e3e8da;flex:1}
+.btn:focus-visible,.icon-button:focus-visible{outline:3px solid #96aa6f;outline-offset:3px}.btn{transition:transform .15s,box-shadow .15s,background .15s}.btn:active{transform:translateY(1px)}
+@keyframes dialog-enter{from{opacity:0;transform:translateY(12px) scale(.985)}to{opacity:1;transform:translateY(0) scale(1)}}
+@media(max-width:900px){.profile-layout{grid-template-columns:220px minmax(0,1fr)}}
+@media(max-width:640px){.profile-layout{grid-template-columns:1fr;gap:18px}.profile-summary{padding:26px 20px}.profile-photo-actions{max-width:250px;margin-left:auto;margin-right:auto}.dialog-head{padding:18px}.dialog-head h2{font-size:20px}.dialog-mark{width:40px;height:40px;border-radius:12px}.dialog-heading{gap:11px}.dialog-body{padding:22px 18px}.dialog-body .form-actions{bottom:-22px}.dialog-body .form-grid{gap:17px}.field input,.field select,.field textarea{font-size:16px;padding:11px}.dialog-body .hint{font-size:11px}.ranking-row{gap:10px}.photo-preview .avatar{width:150px;height:150px}}
+@media(prefers-reduced-motion:reduce){dialog[open]{animation:none}.btn,.field input,.field select,.field textarea{transition:none}}
