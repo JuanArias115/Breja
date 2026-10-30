@@ -11,9 +11,13 @@ Repositorio: https://github.com/JuanArias115/Breja — rama `main`.
 - Base persistente: volumen `breja_breja_data`, archivo `/app/.data/breja.sqlite`.
 - Proxy compartido existente: `/opt/deliciasBakery/nginx.conf`, contenedor `deliciasbakery-web-1`.
 
-## Estado de preparación
+## Estado de producción
 
-El repositorio, Docker y GitHub Actions están preparados. La publicación sigue pendiente de Resend, DNS y certificado TLS. `BREJA_DEPLOY_ENABLED=false` permite ejecutar las pruebas y construir Docker sin intentar publicar una aplicación incompleta.
+Publicado el 30 de octubre de 2026 en https://breja.juanariasdev.com. El contenedor funciona en producción, con SQLite persistente y HTTPS. `BREJA_DEPLOY_ENABLED=true` habilita el despliegue automático después de las pruebas.
+
+El certificado de Let's Encrypt se guarda en `/opt/deliciasBakery/certbot/conf/live/breja.juanariasdev.com`. La tarea existente `/etc/cron.d/allegro-certbot` renueva los certificados a diario y recarga Nginx. Se conservaron copias del proxy como `nginx.conf.before-breja-20261030` y `nginx.conf.before-breja-tls-20261030`.
+
+Resend está configurado en el entorno privado; se comprobó la validación de la API sin enviar mensajes. La recepción real del código y el primer acceso del administrador deben verificarse desde la web. Los resúmenes automáticos siguen desactivados.
 
 ## Correo y entorno privado
 
@@ -41,7 +45,7 @@ Referencias: [dominios Resend](https://resend.com/docs/dashboard/domains/introdu
 
 Google es opcional: si se configura `FIREBASE_CONFIG`, añadir también `breja.juanariasdev.com` a los dominios autorizados de Firebase Authentication. El inicio de sesión por email no necesita Firebase.
 
-## Primera publicación
+## Procedimiento de instalación y recuperación
 
 1. Confirmar que el registro A apunta al VPS y que no existe un AAAA incorrecto.
 2. Con el `.env` completo, ejecutar en el checkout del VPS:
@@ -56,7 +60,7 @@ Google es opcional: si se configura `FIREBASE_CONFIG`, añadir también `breja.j
 4. Emitir el certificado con el cliente ACME del servidor usando `/opt/deliciasBakery/certbot/www` como webroot y `/opt/deliciasBakery/certbot/conf` como directorio de certificados. Incluir Breja en la renovación automática existente.
 5. Instalar también el bloque HTTPS de `nginx-breja.conf`, sin duplicar el bloque HTTP. Validar y recargar Nginx. No reemplazar los bloques de otros sitios.
 6. Comprobar `https://breja.juanariasdev.com/api/bootstrap`: HTTP 200, `development: false`, sin datos privados. Probar el acceso de administrador y la entrega del código por correo.
-7. Activar la variable de repositorio `BREJA_DEPLOY_ENABLED=true` y ejecutar el workflow manualmente para comprobar el recorrido completo.
+7. Mantener la variable de repositorio `BREJA_DEPLOY_ENABLED=true` y ejecutar el workflow manualmente para comprobar el recorrido completo. Ponerla en `false` pausa nuevas publicaciones sin detener la web.
 
 El puerto 4173 no se publica en el host; el acceso público se hace exclusivamente mediante el proxy HTTPS.
 

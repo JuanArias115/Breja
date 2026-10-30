@@ -2,7 +2,7 @@
 
 Despliegue del VPS y configuración de `breja.juanariasdev.com`: [deploy/README.md](deploy/README.md).
 
-Aplicación local para organizar partidos, inscripciones, invitados y las cuentas del grupo. Interfaz en **inglés, alemán y español**, con el escudo original, diseño adaptable al móvil y animaciones que respetan la preferencia de movimiento reducido.
+Aplicación web para organizar partidos, inscripciones, invitados y las cuentas del grupo. Interfaz en **inglés, alemán y español**, con el escudo original, diseño adaptable al móvil y animaciones que respetan la preferencia de movimiento reducido.
 
 ## Arranque
 
@@ -130,7 +130,7 @@ La dirección `localhost` solo sirve en este equipo. Para compartir enlaces util
 5. Revisa participantes, zona horaria, importes e instrucciones de pago. Prueba el acceso y la entrega de correo con cuentas controladas antes de activar los envíos mensuales.
 6. Para activar el cierre mensual automático, configura `AUTO_STATEMENTS=true` y mantén el servidor activo con un gestor de procesos. Durante los días 1–7 intenta crear el resumen del mes anterior; si quedan partidos abiertos, espera a que se cierren. Tras ese periodo puede generarse manualmente desde la aplicación. Los resúmenes existentes no se duplican.
 
-No se ha hecho un despliegue público ni una prueba de entrega real de correo. El proveedor de email, el dominio, el alojamiento y los saldos históricos requieren configuración/revisión del club. Un mensaje marcado `failed` en la bandeja requiere revisar el proveedor y la causa antes de reintentarlo; no se reenvía indefinidamente.
+El despliegue público está disponible en https://breja.juanariasdev.com, con HTTPS, SQLite persistente y Resend configurado. Quedan pendientes la prueba de entrega real de correo, el primer acceso del administrador y la revisión de los datos del club. Un mensaje marcado `failed` en la bandeja requiere revisar el proveedor y la causa antes de reintentarlo; no se reenvía indefinidamente.
 
 WhatsApp abre el mensaje preparado para que el organizador lo envíe. **El envío automático por WhatsApp y el cobro online no están integrados.** Los pagos se registran como dinero recibido, y se pueden indicar transferencias en las instrucciones del club.
 
