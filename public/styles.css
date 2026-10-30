@@ -27,3 +27,8 @@ dialog{border:1px solid #dce2d2;background:#fff;border-radius:22px;box-shadow:0 
 .human-check{min-width:0}.human-check .hint{margin:8px 0}.security-summary{display:flex;gap:24px;flex-wrap:wrap;margin:18px 0}.security-summary small,.security-summary strong{display:block}.security-summary small{font-size:11px;color:var(--muted);margin-bottom:8px}.security-summary strong{font-size:18px}
 
 .security-panel{margin-bottom:24px}
+
+.health-status{display:flex;gap:14px;align-items:center;flex-wrap:wrap;margin-bottom:22px}.health-metrics{grid-template-columns:repeat(4,minmax(0,1fr))}.health-events td{vertical-align:top}.health-events td:first-child{min-width:150px}.health-events code{font-size:11px;overflow-wrap:anywhere}.security-summary .health-date{font-size:14px}.health-events strong{font-size:12px}
+
+@media(max-width:900px){.health-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}}
+@media(max-width:370px){.health-metrics{grid-template-columns:1fr}}

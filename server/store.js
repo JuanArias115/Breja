@@ -32,6 +32,12 @@ export class Store {
     this.db = new DatabaseSync(path); this.clock = clock;
     this.db.exec(`PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS technical_events (
+        id INTEGER PRIMARY KEY, bucket INTEGER NOT NULL, event TEXT NOT NULL, level TEXT NOT NULL,
+        scope TEXT NOT NULL, role TEXT NOT NULL, code TEXT NOT NULL, status INTEGER NOT NULL,
+        occurrences INTEGER NOT NULL, first_at TEXT NOT NULL, last_at TEXT NOT NULL,
+        UNIQUE(bucket,event,level,scope,role,code,status));
+      CREATE INDEX IF NOT EXISTS technical_events_recent ON technical_events(last_at);
       CREATE TABLE IF NOT EXISTS security_counters (key TEXT PRIMARY KEY, hits INTEGER NOT NULL, expires_at INTEGER NOT NULL);
       CREATE INDEX IF NOT EXISTS security_counter_expiry ON security_counters(expires_at);
       CREATE TABLE IF NOT EXISTS venues (
@@ -115,7 +121,7 @@ export class Store {
   run(sql,...args) { return this.db.prepare(sql).run(...args); }
   now() { return this.clock().toISOString(); }
   transaction(fn) { this.db.exec('BEGIN IMMEDIATE'); try { const result=fn(); this.db.exec('COMMIT'); return result; } catch(e) { this.db.exec('ROLLBACK'); throw e; } }
-  audit(actor,action,entity,detail={}) { this.run('INSERT INTO audit VALUES (?,?,?,?,?,?)',id(),actor,action,entity,JSON.stringify(detail),this.now()); }
+  audit(actor,action,entity,detail={}) { this.run('INSERT INTO audit VALUES (?,?,?,?,?,?)',id(),actor,action,entity,JSON.stringify(detail),this.now());this.onAudit?.(action,actor); }
   settings() { return Object.fromEntries(this.all('SELECT * FROM settings').map(r=>[r.key,JSON.parse(r.value)])); }
   addUser(profile,role='member',membershipStatus='approved') {
     fail(['member','admin','dev'].includes(role),'invalid_role');

@@ -111,7 +111,7 @@ Los límites usan ventanas fijas que empiezan con la primera petición, no venta
 
 `TRUSTED_PROXY_IPS` acepta solo direcciones exactas del proxy. Breja ignora las cabeceras de IP suministradas directamente por un visitante; un Nginx autorizado debe sobrescribir `X-Real-IP`. Si se recrea el proxy y cambia su IP, se debe actualizar esta variable. La aplicación no publica su puerto al exterior.
 
-La cola de correo aplica un presupuesto persistente de **90 intentos / 24 horas** y **2500 / 30 días**, configurable con `EMAIL_DAILY_LIMIT` y `EMAIL_MONTHLY_LIMIT`. Cuenta intentos al proveedor, incluidos reintentos; borrar mensajes no repone presupuesto. Al alcanzar un tope, los mensajes esperan. Estos límites corresponden a Breja, no al consumo de otras aplicaciones ni a las cuotas/calendarios de la cuenta Resend. Se pueden consultar en **Ajustes → Protección de acceso y correos**.
+La cola de correo aplica un presupuesto persistente de **90 intentos / 24 horas** y **2500 / 30 días**, configurable con `EMAIL_DAILY_LIMIT` y `EMAIL_MONTHLY_LIMIT`. Cuenta intentos al proveedor, incluidos reintentos; borrar mensajes no repone presupuesto. Al alcanzar un tope, los mensajes esperan. Estos límites corresponden a Breja, no al consumo de otras aplicaciones ni a las cuotas/calendarios de la cuenta Resend. Se pueden consultar en **Health → Protección de acceso y correos**, exclusivo del rol `dev`.
 
 El envío se espacia a un segundo y reintenta errores transitorios como máximo tres veces, conservando la clave de idempotencia. Los códigos caducados o sustituidos se cancelan, y su texto se borra después del envío. Los registros de correo terminados se limpian a los 30 días; los extractos y movimientos financieros permanecen. Una solicitud y sus notificaciones se guardan en la misma transacción. Las notificaciones no se envían a administradores que hayan perdido el rol o se hayan dado de baja.
 
@@ -179,3 +179,14 @@ El despliegue público está disponible en https://breja.juanariasdev.com, con H
 WhatsApp abre el mensaje preparado para que el organizador lo envíe. **El envío automático por WhatsApp y el cobro online no están integrados.** Los pagos se registran como dinero recibido, y se pueden indicar transferencias en las instrucciones del club.
 
 Las correcciones de un mes ya resumido se conservan en la cuenta actual. Los resúmenes guardados conservan sus importes como instantáneas; una baja solo limpia los datos personales y notas de la copia, sin alterar sus totales. No se han implementado reprogramaciones de partidos con asistentes; para esta primera versión se cancela y se crea una nueva convocatoria.
+
+
+## Health y registro técnico
+
+La sección independiente **Health** (`/health`) y su API `GET /api/dev/health` están disponibles solo para cuentas aprobadas con rol `dev`. Ni `admin`, ni miembros, ni solicitudes pendientes tienen acceso. Los cambios de rol se comprueban en cada petición. No se cambia el rol de ninguna cuenta existente al desplegar.
+
+Muestra una instantánea actualizable del proceso (tiempo activo y memoria), conexión SQLite, Turnstile, presupuesto de envío, mensajes en cola/fallidos/enviados y último envío. Es información de la aplicación, no monitorización completa del VPS ni de la cuenta Resend. Un error de las últimas 24 horas, mensajes fallidos o presupuesto agotado muestran «Requiere revisión».
+
+La actividad registra accesos correctos/rechazados, límites, solicitudes y revisiones, cambios de roles y perfiles, ajustes, lugares, partidos, noticias y entregas de correo. El registro de errores recoge peticiones internas, tareas y entregas fallidas, con código controlado y estado HTTP cuando está disponible. Los reintentos aparecen como avisos. No es una auditoría forense ni expone el registro financiero administrativo.
+
+Se guardan únicamente tipos de evento permitidos, área, rol, código, estado, fechas y contador. No se guardan identidades, IP, destinatarios, cuerpos de correo, códigos de acceso, claves, URLs, trazas de excepción ni detalles de pagos. Los registros empiezan con esta versión y persisten en SQLite entre reinicios. Retención máxima: 30 días o 2.000 grupos; repeticiones agrupadas por minuto. Cada lista muestra los últimos 100 grupos. Health es de consulta, sin botones para borrar registros o reenviar correos.

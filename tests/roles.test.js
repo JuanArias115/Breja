@@ -85,13 +85,16 @@ test('role-aware pages render without financial payloads and protect direct navi
  const source=readFileSync(new URL('../public/app.js',import.meta.url),'utf8').replace(/^import .*;\r?\n/gm,'').replace(/boot\(\);\s*$/,'globalThis.ui={state,render,roleDialog};');
  vm.runInContext(source,context);
  context.ui.state.data=(await call('/api/bootstrap',{headers:{cookie:devCookie}})).json();
+ context.ui.state.health=(await call('/api/dev/health',{headers:{cookie:devCookie}})).json();
+ context.ui.state.route='/health';context.ui.render();assert.match(app.innerHTML,/href="\/health"|data-action="refresh-health"/);assert.ok(app.innerHTML.includes(i18n.t('healthErrors')));
  for(const path of ['/','/matches','/settings','/venues','/profile','/matches/'+context.ui.state.data.matches[0].id]){
   context.ui.state.route=path;context.ui.render();assert.doesNotMatch(app.innerHTML,/href="\/(account|members|payments|statements)"|data-action="(record-payment|join|guest|close-match|cancel-match)"|name="payment_instructions/);
  }
  for(const path of ['/members','/account','/payments','/statements']){context.ui.state.route=path;context.ui.render();assert.ok(app.innerHTML.includes(i18n.t('not_found')));}
  context.ui.state.data=(await call('/api/bootstrap',{headers:{cookie:adminCookie}})).json();context.ui.state.admin=(await call('/api/admin',{headers:{cookie:adminCookie}})).json();
  context.ui.state.route='/members';context.ui.render();assert.match(app.innerHTML,/data-action="edit-role"/);assert.doesNotMatch(app.innerHTML,/link-roster|member-tab/);
- context.ui.state.route='/settings';context.ui.render();assert.match(app.innerHTML,/name="payment_instructions_en"/);
+ context.ui.state.route='/settings';context.ui.render();assert.match(app.innerHTML,/name="payment_instructions_en"/);assert.doesNotMatch(app.innerHTML,/security-panel|href="\/health"/);
+ for(const role of ['admin','member']){context.ui.state.data.me.role=role;context.ui.state.route='/health';context.ui.render();assert.ok(app.innerHTML.includes(i18n.t('not_found')));assert.doesNotMatch(app.innerHTML,/data-action="refresh-health"|href="\/health"/);}
 });
 
 test.after(()=>store.db.close());

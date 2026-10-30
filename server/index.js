@@ -1,3 +1,4 @@
+import { createTelemetry, recordRequestFailure } from './health.js';
 import { clientAddress, securityConfig, PersistentLimiter, verifyTurnstile, mailBudgetRules } from './security.js';
 import { createMailer } from './mailer.js';
 import { firebaseConfig, verifyGoogleToken, linkGoogleUser } from './firebase.js';
@@ -24,9 +25,10 @@ const cookie=(res,token,clear=false)=>res.setHeader('Set-Cookie',`breja_session=
 const session=(res,uid)=>{store.run('DELETE FROM sessions WHERE user_id=? AND token_hash NOT IN (SELECT token_hash FROM sessions WHERE user_id=? ORDER BY expires_at DESC LIMIT 4)',uid,uid);const token=randomBytes(32).toString('base64url');store.run('INSERT INTO sessions VALUES (?,?,?)',hash(token),uid,new Date(Date.now()+30*86400000).toISOString());cookie(res,token);};
 function user(req){const token=req.headers.cookie?.match(/(?:^|; )breja_session=([^;]+)/)?.[1];if(!token)return null;return store.get('SELECT u.* FROM sessions s JOIN users u ON s.user_id=u.id WHERE s.token_hash=? AND s.expires_at>? AND u.deleted_at IS NULL',hash(token),store.now())||null;}
 async function body(req,max=65536){let result='';for await(const chunk of req){result+=chunk;fail(Buffer.byteLength(result)<=max,'request_too_large',413);}if(req.accountId)fail(store.get('SELECT id FROM users WHERE id=? AND deleted_at IS NULL',req.accountId),'unauthorized',401);try{return JSON.parse(result||'{}');}catch{throw new AppError('invalid_json');}}
-const limits=new Map(),limiter=new PersistentLimiter(store,secret);
+const limits=new Map(),limiter=new PersistentLimiter(store,secret),telemetry=createTelemetry(store);
+const startedAt=store.now();
 function throttle(key,max=100,window=60000){const now=Date.now();let slot=limits.get(key);if(!slot||slot.expires<now){fail(limits.has(key)||limits.size<10000,'rate_limited',429,{retry_after:60});slot={n:0,expires:now+window};limits.set(key,slot);}fail(++slot.n<=max,'rate_limited',429,{retry_after:Math.ceil((slot.expires-now)/1000)});}
-const mailer=createMailer(store,{enabled:production,config:security,limiter,origin,apiKey:process.env.RESEND_API_KEY,from:process.env.MAIL_FROM});
+const mailer=createMailer(store,{enabled:production,config:security,limiter,telemetry,origin,apiKey:process.env.RESEND_API_KEY,from:process.env.MAIL_FROM});
 const deliverOutbox=()=>mailer.drain();
 function visibleMatch(m,me){
   const registrations=store.all(`SELECT r.*,u.display_name,p.display_name sponsor_name FROM registrations r LEFT JOIN users u ON r.user_id=u.id JOIN users p ON r.responsible_id=p.id WHERE r.match_id=? ORDER BY r.joined_at,r.id`,m.id);
@@ -41,10 +43,23 @@ function bootstrap(me){
   const visibleSettings=developer?Object.fromEntries(['price_cents','capacity','cancel_hours','timezone'].map(key=>[key,settings[key]])):settings;
   return {me:store.publicUser(me),config,settings:visibleSettings,leaderboard:store.leaderboard(),photos:store.all("SELECT user_id,'/api/members/'||user_id||'/photo?v='||version url FROM profile_photos"),venues:store.all('SELECT * FROM venues WHERE archived=0 OR ? ORDER BY archived,name',manager?1:0),matches:store.all("SELECT * FROM matches WHERE status<>'draft' OR created_by=? OR ? ORDER BY starts_at DESC",me.id,manager?1:0).map(m=>visibleMatch(m,me)),news:store.all("SELECT id,title_en,title_de,title_es,body_en,body_de,body_es,pinned,created_at,CASE WHEN image_data<>'' THEN '/api/news/'||id||'/image' ELSE '' END image_url FROM news ORDER BY pinned DESC,created_at DESC"),...(developer?{}:{account:{balance:store.balance(me.id),ledger:store.all('SELECT * FROM ledger WHERE user_id=? ORDER BY occurred_at DESC,created_at DESC',me.id),reports:store.all('SELECT * FROM payment_reports WHERE user_id=? ORDER BY created_at DESC',me.id)},statements:store.all('SELECT id,month,snapshot,created_at FROM statements WHERE user_id=? ORDER BY month DESC',me.id).map(r=>({...r,snapshot:JSON.parse(r.snapshot)}))})};
 }
-function adminData(){return {security:{turnstile:!!security.siteKey,emailDailyLimit:security.emailDaily,emailDailyUsed:limiter.usage('mail:daily'),emailMonthlyLimit:security.emailMonthly,emailMonthlyUsed:limiter.usage('mail:monthly')},applications:store.all("SELECT * FROM users WHERE membership_status IN ('pending','rejected') AND deleted_at IS NULL ORDER BY application_submitted_at").map(u=>store.publicUser(u)),stats:{received:store.get("SELECT COALESCE(-SUM(l.amount_cents),0) total FROM ledger l LEFT JOIN ledger original ON original.id=l.reverses_id WHERE l.kind='payment' OR (l.kind='reversal' AND original.kind='payment')").total},archivedMembers:store.all('SELECT id,display_name,deleted_at FROM users WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC').map(u=>({...u,balance:store.balance(u.id)})),members:store.all("SELECT * FROM users WHERE membership_status='approved' AND deleted_at IS NULL ORDER BY display_name").map(u=>({...store.publicUser(u),balance:store.balance(u.id)})),ledger:store.all('SELECT l.*,u.display_name FROM ledger l JOIN users u ON l.user_id=u.id ORDER BY l.created_at DESC LIMIT 200'),reports:store.all("SELECT r.*,u.display_name FROM payment_reports r JOIN users u ON r.user_id=u.id WHERE r.status='pending' ORDER BY r.created_at"),outbox:store.all("SELECT id,user_id,recipient,subject,body,kind,status,error,created_at,sent_at FROM outbox WHERE kind<>'login' ORDER BY created_at DESC LIMIT 100"),statements:store.all('SELECT s.id,s.month,s.created_at,u.display_name FROM statements s JOIN users u ON s.user_id=u.id ORDER BY s.created_at DESC'),audit:store.all('SELECT a.*,u.display_name FROM audit a LEFT JOIN users u ON a.actor_id=u.id ORDER BY a.created_at DESC LIMIT 40')};}
+function adminData(){return {applications:store.all("SELECT * FROM users WHERE membership_status IN ('pending','rejected') AND deleted_at IS NULL ORDER BY application_submitted_at").map(u=>store.publicUser(u)),stats:{received:store.get("SELECT COALESCE(-SUM(l.amount_cents),0) total FROM ledger l LEFT JOIN ledger original ON original.id=l.reverses_id WHERE l.kind='payment' OR (l.kind='reversal' AND original.kind='payment')").total},archivedMembers:store.all('SELECT id,display_name,deleted_at FROM users WHERE deleted_at IS NOT NULL ORDER BY deleted_at DESC').map(u=>({...u,balance:store.balance(u.id)})),members:store.all("SELECT * FROM users WHERE membership_status='approved' AND deleted_at IS NULL ORDER BY display_name").map(u=>({...store.publicUser(u),balance:store.balance(u.id)})),ledger:store.all('SELECT l.*,u.display_name FROM ledger l JOIN users u ON l.user_id=u.id ORDER BY l.created_at DESC LIMIT 200'),reports:store.all("SELECT r.*,u.display_name FROM payment_reports r JOIN users u ON r.user_id=u.id WHERE r.status='pending' ORDER BY r.created_at"),outbox:store.all("SELECT id,user_id,recipient,subject,body,kind,status,error,created_at,sent_at FROM outbox WHERE kind<>'login' ORDER BY created_at DESC LIMIT 100"),statements:store.all('SELECT s.id,s.month,s.created_at,u.display_name FROM statements s JOIN users u ON s.user_id=u.id ORDER BY s.created_at DESC'),audit:store.all('SELECT a.*,u.display_name FROM audit a LEFT JOIN users u ON a.actor_id=u.id ORDER BY a.created_at DESC LIMIT 40')};}
 
+function healthData(){
+ const database=store.get('SELECT 1 ok').ok===1,log=telemetry.report();
+ const queue=Object.fromEntries(['queued','sent','failed','cancelled'].map(status=>[status,store.get('SELECT COUNT(*) n FROM outbox WHERE status=?',status).n]));
+ const oldest=store.get("SELECT MIN(created_at) value FROM outbox WHERE status='queued'").value;
+ const budgetBlocked=limiter.usage('mail:daily')>=security.emailDaily||limiter.usage('mail:monthly')>=security.emailMonthly;
+ return {checkedAt:store.now(),status:queue.failed||budgetBlocked||log.errors24h?'attention':'operational',runtime:{startedAt,uptimeSeconds:Math.floor(process.uptime()),memoryMB:Math.round(process.memoryUsage().rss/1048576),node:process.versions.node,database},
+ security:{turnstile:!!security.siteKey,emailDailyLimit:security.emailDaily,emailDailyUsed:limiter.usage('mail:daily'),emailMonthlyLimit:security.emailMonthly,emailMonthlyUsed:limiter.usage('mail:monthly')},
+ mail:{...queue,oldestQueuedAt:oldest,lastSentAt:store.get("SELECT MAX(sent_at) value FROM outbox WHERE status='sent'").value,budgetBlocked},retention:{days:30,maxGroups:2000,groupingSeconds:60},...log};
+}
 export async function api(req,res,url){
- const path=url.pathname,method=req.method,me=user(req),address=clientAddress(req,security.trustedProxies);
+ req.healthHandled=true;
+ try{return await handleApi(req,res,url);}catch(error){recordRequestFailure(telemetry,req,url.pathname,error);throw error;}
+}
+async function handleApi(req,res,url){
+ const path=url.pathname,method=req.method,me=user(req),address=clientAddress(req,security.trustedProxies);req.healthRole=me?.role||'anonymous';
  if(method!=='GET'){
    fail(req.headers.origin===origin,'invalid_origin',403);
    fail(req.headers['content-type']?.startsWith('application/json'),'invalid_content_type',415);
@@ -58,7 +73,7 @@ export async function api(req,res,url){
  }
  if(path==='/api/auth/google'&&method==='POST'){
   limiter.consume([{key:'google:'+address,max:20,window:600000}]);const input=await body(req);
-  const claims=await verifyGoogleToken(input.id_token,googleConfig);const account=linkGoogleUser(store,claims,input.language,process.env.ADMIN_EMAIL||'');session(res,account.id);return json(res,200,{ok:true});
+  const claims=await verifyGoogleToken(input.id_token,googleConfig);const account=linkGoogleUser(store,claims,input.language,process.env.ADMIN_EMAIL||'');session(res,account.id);telemetry.record('access.login',{scope:'access',role:account.role});return json(res,200,{ok:true});
  }
  if(path==='/api/auth/request'&&method==='POST'){
    limiter.consume([{key:'email-ip:'+address,max:10,window:600000},{key:'email-ip-day:'+address,max:30,window:86400000}]);
@@ -69,7 +84,7 @@ export async function api(req,res,url){
    store.run("UPDATE outbox SET status='cancelled',body='',error='superseded' WHERE kind='login' AND recipient=? AND status='queued'",email);
    const code=String(randomInt(100000,1000000));store.run('INSERT OR REPLACE INTO login_codes VALUES (?,?,?,0,?,?)',email,codeHash(email,code),new Date(Date.now()+10*60000).toISOString(),JSON.stringify(profile),store.now());
    store.enqueue(existing||{id:null,email},'login','login:'+id(),profile.language==='es'?'Tu código de acceso a Breja FC':profile.language==='de'?'Dein Breja FC Anmeldecode':'Your Breja FC sign-in code',profile.language==='es'?`Tu código: ${code}\nCaduca en 10 minutos.`:profile.language==='de'?`Dein Code: ${code}\nEr ist 10 Minuten gültig.`:`Your code: ${code}\nIt expires in 10 minutes.`);
-   if(production)void deliverOutbox();return json(res,200,{ok:true,...(!production?{developmentCode:code}: {})});
+   telemetry.record('access.code_requested',{scope:'access',role:'anonymous'});if(production)void deliverOutbox();return json(res,200,{ok:true,...(!production?{developmentCode:code}: {})});
  }
  if(path==='/api/auth/verify'&&method==='POST'){
    limiter.consume([{key:'verify-ip:'+address,max:30,window:600000}]);
@@ -77,13 +92,13 @@ export async function api(req,res,url){
    fail(login&&login.expires_at>store.now()&&login.attempts<5,'invalid_code',401);store.run('UPDATE login_codes SET attempts=attempts+1 WHERE email=?',email);
    fail(timingSafeEqual(Buffer.from(login.code_hash),Buffer.from(codeHash(email,code))),'invalid_code',401);
    let u=store.get('SELECT * FROM users WHERE email=?',email);if(!u){const initialAdmin=store.canBootstrapAdmin(email,process.env.ADMIN_EMAIL||'');u=store.addUser(JSON.parse(login.profile),initialAdmin?'admin':'member',initialAdmin?'approved':'onboarding');}
-   store.run('DELETE FROM login_codes WHERE email=?',email);store.run("UPDATE outbox SET status='cancelled',body='',error='code_used' WHERE kind='login' AND recipient=? AND status='queued'",email);session(res,u.id);return json(res,200,{ok:true});
+   store.run('DELETE FROM login_codes WHERE email=?',email);store.run("UPDATE outbox SET status='cancelled',body='',error='code_used' WHERE kind='login' AND recipient=? AND status='queued'",email);session(res,u.id);telemetry.record('access.login',{scope:'access',role:u.role});return json(res,200,{ok:true});
  }
  if(path==='/api/auth/development'&&method==='POST'){
    fail(!production,'not_found',404);const input=await body(req);fail(['member','admin'].includes(input.role),'invalid_role');const email=input.role==='member'?'sam@example.test':'alex@example.test';session(res,store.get('SELECT id FROM users WHERE email=?',email).id);return json(res,200,{ok:true});
  }
  fail(me,'unauthorized',401);req.accountId=me.id;
- if(path==='/api/auth/logout'&&method==='POST'){const token=req.headers.cookie?.match(/breja_session=([^;]+)/)?.[1];if(token)store.run('DELETE FROM sessions WHERE token_hash=?',hash(token));cookie(res,'',true);return json(res,200,{ok:true});}
+ if(path==='/api/auth/logout'&&method==='POST'){const token=req.headers.cookie?.match(/breja_session=([^;]+)/)?.[1];if(token)store.run('DELETE FROM sessions WHERE token_hash=?',hash(token));cookie(res,'',true);telemetry.record('access.logout',{scope:'access',role:me.role});return json(res,200,{ok:true});}
  if(path==='/api/membership/application'&&method==='POST'){
   fail(me.membership_status==='onboarding','application_not_editable',409);
   limiter.consume([{key:'application-ip:'+address,max:10,window:3600000}]);
@@ -93,6 +108,7 @@ export async function api(req,res,url){
  }
  // All private club APIs, including media and profile edits, require approval.
  fail(me.membership_status==='approved','membership_required',403);
+ if(path==='/api/dev/health'){fail(me.role==='dev','forbidden',403);fail(method==='GET','not_found',404);return json(res,200,healthData());}
  const imageMatch=path.match(/^\/api\/news\/([^/]+)\/image$/);
  if(imageMatch&&method==='GET'){
   const row=store.get('SELECT image_data FROM news WHERE id=?',imageMatch[1]);fail(row?.image_data,'not_found',404);
@@ -112,7 +128,7 @@ export async function api(req,res,url){
    const p=await body(req);fail(['en','de','es'].includes(p.language),'invalid_input');const birthday=birthdayValue(p.birthday,store.now().slice(0,10),!!me.application_submitted_at);
    const position=text(p.position||'',50,false),secondary=text(p.position_secondary??me.position_secondary,50,false);
    fail((!position&&!me.application_submitted_at||FOOTBALL_POSITIONS.includes(position)||position===me.position)&&(!secondary||FOOTBALL_POSITIONS.includes(secondary))&&(!secondary||secondary!==position),'invalid_positions');
-   store.run('UPDATE users SET name=?,display_name=?,phone=?,birthday=?,position=?,position_secondary=?,language=? WHERE id=?',text(p.name,100),text(p.display_name,60),text(p.phone||'',30,false),birthday,position,secondary,p.language,me.id);return json(res,200,{ok:true});
+   store.run('UPDATE users SET name=?,display_name=?,phone=?,birthday=?,position=?,position_secondary=?,language=? WHERE id=?',text(p.name,100),text(p.display_name,60),text(p.phone||'',30,false),birthday,position,secondary,p.language,me.id);telemetry.record('profile.updated',{scope:'profile',role:me.role});return json(res,200,{ok:true});
  }
  if(me.role==='dev'&&(/^\/api\/(matches|registrations)\//.test(path)||path==='/api/payment-reports'))throw new AppError('forbidden',403);
  let match=path.match(/^\/api\/matches\/([^/]+)\/join$/);if(match&&method==='POST'){const p=await body(req);fail(p.accept_policy===true,'policy_required');return json(res,200,store.join(me.id,match[1],p.guest_name||null));}
@@ -161,7 +177,7 @@ export async function api(req,res,url){
  if(path==='/api/admin/news'&&method==='POST'){
   const p=newsInput(await body(req,3*1024*1024));
   const nid=id();store.run('INSERT INTO news (id,title_en,title_de,body_en,body_de,pinned,created_at,title_es,body_es,image_data) VALUES (?,?,?,?,?,?,?,?,?,?)',nid,p.title_en,p.title_de,p.body_en,p.body_de,p.pinned?1:0,store.now(),p.title_es,p.body_es,p.image_data);
-  return json(res,201,{ok:true,id:nid});
+  telemetry.record('news.created',{scope:'news',role:me.role});return json(res,201,{ok:true,id:nid});
  }
  if(path==='/api/admin/export'&&method==='GET'){
    const rows=store.all('SELECT l.*,u.name,u.email FROM ledger l JOIN users u ON u.id=l.user_id ORDER BY l.occurred_at');
@@ -184,7 +200,7 @@ const server=http.createServer(async(req,res)=>{
     fail(file.startsWith(join(root,'public')+ '\\')||file.startsWith(join(root,'public')+'/'),'not_found',404);fail(existsSync(file)&&statSync(file).isFile(),'not_found',404);
     const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.svg':'image/svg+xml','.webmanifest':'application/manifest+json'};
     res.writeHead(200,{'Content-Type':mime[extname(file)]||'application/octet-stream','Cache-Control':'no-cache'});if(req.method==='HEAD')return res.end();createReadStream(file).pipe(res);
-  }catch(e){if(e.status===429&&!res.headersSent)res.setHeader('Retry-After',String(e.details?.retry_after||60));if(!res.headersSent)json(res,e.status||500,{error:e.code||'server_error',details:e.details||{}});else res.end();if(!e.status)console.error(e);}
+  }catch(e){if(!req.healthHandled)recordRequestFailure(telemetry,req,'',e);if(e.status===429&&!res.headersSent)res.setHeader('Retry-After',String(e.details?.retry_after||60));if(!res.headersSent)json(res,e.status||500,{error:e.code||'server_error',details:e.details||{}});else res.end();if(!e.status)console.error('Request failed: internal_error');}
 });
 server.requestTimeout=15000;server.headersTimeout=10000;server.keepAliveTimeout=5000;server.maxRequestsPerSocket=100;
 const isMain=process.argv[1]&&resolve(process.argv[1])===fileURLToPath(import.meta.url);
@@ -195,17 +211,19 @@ const timer=isMain?setInterval(()=>{
     store.run('DELETE FROM security_counters WHERE expires_at<=?',store.clock().getTime());
     store.run("UPDATE outbox SET status='cancelled',body='',error='expired' WHERE kind='login' AND status='queued' AND created_at<?",new Date(store.clock().getTime()-600000).toISOString());
     store.run("DELETE FROM outbox WHERE status IN ('sent','cancelled','failed') AND created_at<?",new Date(store.clock().getTime()-30*86400000).toISOString());
+    telemetry.prune();
     for(const [key,v] of limits)if(v.expires<Date.now())limits.delete(key);
     if(process.env.AUTO_STATEMENTS==='true'){
       const parts=Object.fromEntries(new Intl.DateTimeFormat('en',{timeZone:store.settings().timezone,year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date()).map(p=>[p.type,p.value]));
       if(Number(parts.day)<=7){const d=new Date(Date.UTC(Number(parts.year),Number(parts.month)-2,1));const month=d.toISOString().slice(0,7);const admin=store.get("SELECT id FROM users WHERE role='admin' LIMIT 1");if(admin&&!store.get('SELECT id FROM audit WHERE action=? AND entity_id=?','statements.generate',month))try{store.generateStatements(admin.id,month);}catch(e){if(e.code!=='unclosed_matches')throw e;}}
     }
     void deliverOutbox();
-  }catch(e){console.error('Background task:',e.code||e.message);}
+  }catch(e){telemetry.record('system.task_failed',{level:'error',code:e.code||'internal_error'});console.error('Background task failed');}
 },30000):null;timer?.unref();
 if(isMain){
+ telemetry.record('system.started');
  server.listen(port,process.env.HOST||'127.0.0.1',()=>console.log(`Breja FC · ${production?'production':'local development'}\nLocal: ${origin}\nDatabase: ${production?'breja.sqlite':'development.sqlite (sample data)'}`));
- const shutdown=()=>{clearInterval(timer);server.close(async()=>{await mailer.stop();store.db.close();process.exit(0);});};
+ const shutdown=()=>{telemetry.record('system.stopping');clearInterval(timer);server.close(async()=>{await mailer.stop();store.db.close();process.exit(0);});};
  process.on('SIGINT',shutdown);
  process.on('SIGTERM',shutdown);
 }
