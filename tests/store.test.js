@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { Store, id } from '../server/store.js';
 
 function fixture(){let clock=new Date('2026-10-01T10:00:00Z');const s=new Store(':memory:',()=>clock);const users=['Alex','Sam','Jamie','Robin'].map((name,i)=>s.addUser({email:`${name.toLowerCase()}@example.test`,name,language:i===1?'de':'en'},i===0?'admin':'member'));
- const create=(overrides={})=>s.createMatch(users[0].id,{title:'Saturday football',starts_at:'2026-10-03T10:00:00Z',ends_at:'2026-10-03T11:30:00Z',timezone:'Europe/Vienna',venue:'USI',address:'',capacity:2,price_cents:500,cancel_hours:24,...overrides});
+ const create=(overrides={})=>s.createMatch(users[0].id,{title:'Saturday football',starts_at:'2026-10-03T10:00:00Z',ends_at:'2026-10-03T11:30:00Z',timezone:'Europe/Vienna',venue:'USI',address:'',capacity:2,price_cents:500,allow_guests:true,cancel_hours:24,...overrides});
  return {s,users,create,clock:value=>{clock=new Date(value);}};
 }
 test('capacity, duplicate protection, offer acceptance and expiry preserve the cap',()=>{

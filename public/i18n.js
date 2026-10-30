@@ -123,6 +123,7 @@ mapAddressHint:["Enter an address to preview the map.", "Gib eine Adresse für d
 };
 for(const [key,translations] of Object.entries(messages))translations.push(spanish[key]);
 Object.assign(messages,membershipMessages,deletionMessages,securityMessages,healthMessages);
+Object.assign(messages,{allowGuests:['Allow guests / referrals','Gäste erlauben','Permitir invitados / referidos'],guestPermissionHint:['Changes affect new guests only. Existing registrations remain.','Änderungen gelten nur für neue Gäste. Bestehende Anmeldungen bleiben.','Puedes cambiarlo en cualquier momento. Los referidos inscritos se conservan.'],guests_disabled:['Guests are not allowed for this match.','Für dieses Spiel sind keine Gäste erlaubt.','Este partido no permite añadir referidos.']});
 const supported=value=>['en','de','es'].includes(value)?value:'en';
 export let lang=supported(localStorage.getItem('breja-language'));
 export function setLanguage(value){lang=supported(value);localStorage.setItem('breja-language',lang);document.documentElement.lang=lang;}

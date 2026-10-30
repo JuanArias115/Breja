@@ -153,7 +153,8 @@ async function handleApi(req,res,url){
  if(path==='/api/admin/venues'&&method==='POST')return json(res,201,store.saveVenue(me.id,await body(req)));
  match=path.match(/^\/api\/admin\/venues\/([^/]+)(\/archive)?$/);
  if(match&&method==='PATCH'){const p=await body(req);if(match[2]){store.archiveVenue(me.id,match[1],p.archived);return json(res,200,{ok:true});}return json(res,200,store.saveVenue(me.id,p,match[1]));}
- if(path==='/api/admin/matches'&&method==='POST')return json(res,201,store.createMatch(me.id,await body(req)));
+ match=path.match(/^\/api\/admin\/matches\/([^/]+)\/guests$/);if(match&&method==='PATCH')return json(res,200,store.setGuestPermission(me.id,match[1],(await body(req)).allow_guests));
+ if(path==='/api/admin/matches'&&method==='POST'){const p=await body(req);fail(me.role==='admin'||!p.allow_guests,'forbidden',403);return json(res,201,store.createMatch(me.id,p));}
  match=path.match(/^\/api\/admin\/matches\/([^/]+)\/(close|cancel|publish)$/);if(match&&method==='POST'){
    const p=await body(req);if(match[2]==='close')return json(res,200,store.closeMatch(me.id,match[1],p.attendance||{}));
    if(match[2]==='cancel')store.cancelMatch(me.id,match[1]);

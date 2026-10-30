@@ -190,3 +190,7 @@ Muestra una instantánea actualizable del proceso (tiempo activo y memoria), con
 La actividad registra accesos correctos/rechazados, límites, solicitudes y revisiones, cambios de roles y perfiles, ajustes, lugares, partidos, noticias y entregas de correo. El registro de errores recoge peticiones internas, tareas y entregas fallidas, con código controlado y estado HTTP cuando está disponible. Los reintentos aparecen como avisos. No es una auditoría forense ni expone el registro financiero administrativo.
 
 Se guardan únicamente tipos de evento permitidos, área, rol, código, estado, fechas y contador. No se guardan identidades, IP, destinatarios, cuerpos de correo, códigos de acceso, claves, URLs, trazas de excepción ni detalles de pagos. Los registros empiezan con esta versión y persisten en SQLite entre reinicios. Retención máxima: 30 días o 2.000 grupos; repeticiones agrupadas por minuto. Cada lista muestra los últimos 100 grupos. Health es de consulta, sin botones para borrar registros o reenviar correos.
+
+### Invitados / referidos por partido
+
+El administrador puede marcar «Permitir invitados / referidos» al crear un partido y cambiarlo después desde Administrar en el detalle, guardando el cambio. Los partidos nuevos lo tienen desactivado por defecto; los existentes mantienen el permiso previo. Desactivarlo bloquea nuevas inscripciones de invitados también en la API, pero conserva inscripciones, listas de espera y pagos existentes. Los miembros siguen pudiendo inscribirse a sí mismos. El rol dev no puede activar este permiso.

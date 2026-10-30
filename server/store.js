@@ -88,6 +88,7 @@ export class Store {
     for (const [key,value] of Object.entries({price_cents:500,capacity:14,cancel_hours:24,timezone:'Europe/Vienna',venue:'USI',address:'',payment_instructions_es:'Contacta con el organizador para consultar cómo pagar.',payment_instructions_en:'Please contact the organiser for payment details.',payment_instructions_de:'Bitte kontaktiere den Organisator für die Zahlungsdetails.'})) {
       this.run('INSERT OR IGNORE INTO settings VALUES (?,?)',key,JSON.stringify(value));
     }
+    if(!this.all('PRAGMA table_info(matches)').some(c=>c.name==='allow_guests'))this.db.exec('ALTER TABLE matches ADD COLUMN allow_guests INTEGER NOT NULL DEFAULT 1');
     // Retire the imported Excel directory; registered accounts and their history stay intact.
     this.db.exec('DROP TABLE IF EXISTS roster');
     this.db.exec("CREATE TABLE IF NOT EXISTS profile_photos (user_id TEXT PRIMARY KEY REFERENCES users(id), image_data TEXT NOT NULL, version TEXT NOT NULL)");
@@ -239,7 +240,13 @@ export class Store {
     fail(this.get('SELECT id FROM venues WHERE id=?',vid),'not_found',404);fail(typeof archived==='boolean','invalid_input');
     this.transaction(()=>{this.run('UPDATE venues SET archived=? WHERE id=?',archived?1:0,vid);if(archived&&this.settings().default_venue_id===vid)this.run("UPDATE settings SET value='\"\"' WHERE key='default_venue_id'");this.audit(actor,archived?'venue.archive':'venue.restore',vid);});
   }
+  setGuestPermission(actor,mid,enabled) {
+    fail(this.get('SELECT role FROM users WHERE id=? AND deleted_at IS NULL',actor)?.role==='admin','forbidden',403);
+    fail(typeof enabled==='boolean','invalid_input');this.match(mid);
+    this.run('UPDATE matches SET allow_guests=? WHERE id=?',enabled?1:0,mid);this.audit(actor,'match.guests',mid,{enabled});return this.match(mid);
+  }
   createMatch(actor,input) {
+    fail(input.allow_guests===undefined||typeof input.allow_guests==='boolean','invalid_input');
     input={...input,timezone:this.settings().timezone};
     if(input.venue_id){const venue=this.get('SELECT * FROM venues WHERE id=? AND archived=0',text(input.venue_id,100));fail(venue,'venue_unavailable');input={...input,venue:venue.name,address:venue.address,map_url:venue.map_url};}
     const start=new Date(input.starts_at),end=new Date(input.ends_at); const capacity=Number(input.capacity),hours=Number(input.cancel_hours);
@@ -247,6 +254,7 @@ export class Store {
     fail(Number.isInteger(capacity)&&capacity>=2&&capacity<=100 && Number.isInteger(hours)&&hours>=0&&hours<=168,'invalid_input');
     try { new Intl.DateTimeFormat('en',{timeZone:input.timezone}).format(start); } catch { throw new AppError('invalid_timezone'); }
     const mid=id();this.run(`INSERT INTO matches (id,share_token,title,starts_at,ends_at,timezone,venue,address,capacity,price_cents,cancel_hours,status,created_by,created_at,venue_id,map_url) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,mid,randomBytes(18).toString('base64url'),text(input.title,100),start.toISOString(),end.toISOString(),input.timezone,text(input.venue,120),text(input.address||'',300,false),capacity,cents(input.price_cents),hours,input.status==='draft'?'draft':'open',actor,this.now(),input.venue_id||null,mapURL(input.map_url||''));
+    this.run('UPDATE matches SET allow_guests=? WHERE id=?',input.allow_guests===true?1:0,mid);
     this.audit(actor,'match.create',mid);return this.match(mid);
   }
   occupancy(mid) { return this.get("SELECT COUNT(*) n FROM registrations WHERE match_id=? AND status IN ('confirmed','offered')",mid).n; }
@@ -266,7 +274,7 @@ export class Store {
       const m=this.match(mid);fail(m.status==='open'&&m.starts_at>this.now(),'registration_closed');this.promote(mid);
       const existing=guestName?null:this.get('SELECT * FROM registrations WHERE match_id=? AND user_id=?',mid,actor);
       fail(!existing||['cancelled','expired'].includes(existing.status),'already_registered',409);
-      if(guestName){guestName=text(guestName,80);fail(!this.get("SELECT id FROM registrations WHERE match_id=? AND responsible_id=? AND lower(guest_name)=lower(?) AND status NOT IN ('cancelled','expired')",mid,actor,guestName),'already_registered',409);}
+      if(guestName){fail(m.allow_guests===1,'guests_disabled',403);guestName=text(guestName,80);fail(!this.get("SELECT id FROM registrations WHERE match_id=? AND responsible_id=? AND lower(guest_name)=lower(?) AND status NOT IN ('cancelled','expired')",mid,actor,guestName),'already_registered',409);}
       const rid=existing?.id||id(),status=this.occupancy(mid)<m.capacity?'confirmed':'waitlist';
       if(existing)this.run('UPDATE registrations SET status=?,joined_at=?,cancelled_at=NULL,offer_until=NULL WHERE id=?',status,this.now(),rid);
       else this.run('INSERT INTO registrations (id,match_id,user_id,responsible_id,guest_name,status,joined_at) VALUES (?,?,?,?,?,?,?)',rid,mid,guestName?null:actor,actor,guestName,status,this.now());

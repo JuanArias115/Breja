@@ -13,7 +13,7 @@ export function seedDevelopment(s) {
   const admin=s.addUser({email:'alex@example.test',name:'Alex Morgan',display_name:'Alex',language:'en'},'admin');
   const users=[admin,...[['sam','Sam Rivera','de'],['jamie','Jamie Collins','en'],['chris','Chris Weber','de'],['robin','Robin Meyer','en'],['leo','Leo Costa','en'],['max','Max Keller','de'],['noah','Noah Silva','en'],['luca','Luca Moretti','en'],['ben','Ben Fischer','de']].map(([email,name,language])=>s.addUser({email:email+'@example.test',name,display_name:name.split(' ')[0],language}))];
   const next=new Date();next.setUTCHours(9,0,0,0);next.setUTCDate(next.getUTCDate()+1);
-  const make=(date,title,capacity=14)=>s.createMatch(admin.id,{title,starts_at:date.toISOString(),ends_at:new Date(date.getTime()+90*60000).toISOString(),timezone:'Europe/Vienna',venue:'USI',address:'Venue address to be confirmed',capacity,price_cents:500,cancel_hours:24});
+  const make=(date,title,capacity=14)=>s.createMatch(admin.id,{title,starts_at:date.toISOString(),ends_at:new Date(date.getTime()+90*60000).toISOString(),timezone:'Europe/Vienna',venue:'USI',address:'Venue address to be confirmed',capacity,price_cents:500,allow_guests:true,cancel_hours:24});
   const match=make(next,'Football match');for(const user of users.slice(1))s.join(user.id,match.id);
   s.join(users[1].id,match.id,'Taylor');
   const following=new Date(next.getTime()+7*86400000);make(following,'Football match');

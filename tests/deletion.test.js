@@ -17,7 +17,7 @@ function fixture(t){
  const admin=s.addUser({name:'Owner',email:'owner@example.test'},'admin');
  const member=s.addUser({name:'Private Person',display_name:'Private Nick',email:'private@example.test'});
  const other=s.addUser({name:'Other',email:'other@example.test'});
- const create=(date='2026-10-03',capacity=2)=>s.createMatch(admin.id,{title:'Club match',starts_at:date+'T10:00:00Z',ends_at:date+'T11:30:00Z',timezone:'Europe/Vienna',venue:'USI',capacity,price_cents:500,cancel_hours:24});
+ const create=(date='2026-10-03',capacity=2)=>s.createMatch(admin.id,{title:'Club match',starts_at:date+'T10:00:00Z',ends_at:date+'T11:30:00Z',timezone:'Europe/Vienna',venue:'USI',capacity,price_cents:500,allow_guests:true,cancel_hours:24});
  return {s,admin,member,other,create,clock:date=>{now=new Date(date);}};
 }
 
