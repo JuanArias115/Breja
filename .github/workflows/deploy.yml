@@ -1,0 +1,59 @@
+name: Breja CI and deploy
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: breja-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - run: npm ci
+      - run: npm run check
+      - run: npm test
+      - run: docker build -t breja:ci .
+      - run: node tests/container.mjs breja:ci
+
+  deploy:
+    needs: test
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && vars.BREJA_DEPLOY_ENABLED == 'true'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - name: Prepare SSH
+        env:
+          SSH_KEY_B64: ${{ secrets.VPS_SSH_KEY_B64 }}
+          KNOWN_HOSTS: ${{ secrets.VPS_KNOWN_HOSTS }}
+        run: |
+          install -d -m 700 "$HOME/.ssh"
+          printf '%s' "$SSH_KEY_B64" | base64 --decode > "$HOME/.ssh/id_ed25519"
+          printf '%s\n' "$KNOWN_HOSTS" > "$HOME/.ssh/known_hosts"
+          chmod 600 "$HOME/.ssh/"*
+      - name: Update and verify container
+        env:
+          VPS_HOST: ${{ secrets.VPS_HOST }}
+          VPS_USER: ${{ secrets.VPS_USER }}
+          VPS_PATH: ${{ secrets.VPS_PATH }}
+        run: |
+          [[ "$VPS_PATH" =~ ^/[a-zA-Z0-9_/-]+$ ]] || exit 1
+          ssh -o BatchMode=yes -o StrictHostKeyChecking=yes "$VPS_USER@$VPS_HOST" \
+            "set -eu; cd '$VPS_PATH'; test -f .env; git pull --ff-only origin main; docker compose build --pull; docker compose up -d --wait --wait-timeout 120"
+      - name: Verify HTTPS
+        run: curl --fail --show-error --silent --retry 5 --retry-delay 3 https://breja.juanariasdev.com/api/bootstrap
+      - name: Remove runner key
+        if: always()
+        run: rm -f "$HOME/.ssh/id_ed25519"

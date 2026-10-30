@@ -185,6 +185,8 @@ const timer=isMain?setInterval(()=>{
   }catch(e){console.error('Background task:',e.code||e.message);}
 },30000):null;timer?.unref();
 if(isMain){
- server.listen(port,'127.0.0.1',()=>console.log(`Breja FC · ${production?'production':'local development'}\nLocal: ${origin}\nDatabase: ${production?'breja.sqlite':'development.sqlite (sample data)'}`));
- process.on('SIGINT',()=>{clearInterval(timer);server.close(()=>{store.db.close();process.exit(0);});});
+ server.listen(port,process.env.HOST||'127.0.0.1',()=>console.log(`Breja FC · ${production?'production':'local development'}\nLocal: ${origin}\nDatabase: ${production?'breja.sqlite':'development.sqlite (sample data)'}`));
+ const shutdown=()=>{clearInterval(timer);server.close(()=>{store.db.close();process.exit(0);});};
+ process.on('SIGINT',shutdown);
+ process.on('SIGTERM',shutdown);
 }

@@ -1,5 +1,7 @@
 # Breja FC
 
+Despliegue del VPS y configuración de `breja.juanariasdev.com`: [deploy/README.md](deploy/README.md).
+
 Aplicación local para organizar partidos, inscripciones, invitados y las cuentas del grupo. Interfaz en **inglés, alemán y español**, con el escudo original, diseño adaptable al móvil y animaciones que respetan la preferencia de movimiento reducido.
 
 ## Arranque

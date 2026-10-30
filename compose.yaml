@@ -1,0 +1,32 @@
+name: breja
+services:
+  web:
+    build: .
+    restart: unless-stopped
+    init: true
+    env_file: .env
+    environment:
+      NODE_ENV: production
+      HOST: 0.0.0.0
+      PORT: 4173
+      APP_ORIGIN: https://breja.juanariasdev.com
+      DATABASE_PATH: /app/.data/breja.sqlite
+    volumes:
+      - breja_data:/app/.data
+    expose:
+      - "4173"
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:4173/api/bootstrap').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 30s
+      timeout: 5s
+      start_period: 15s
+      retries: 3
+    stop_grace_period: 30s
+    networks:
+      allegro_ingress:
+        aliases: [breja-web]
+volumes:
+  breja_data:
+networks:
+  allegro_ingress:
+    external: true
