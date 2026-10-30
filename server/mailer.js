@@ -1,3 +1,4 @@
+import { statementHtml } from './email-template.js';
 import { setTimeout as delay } from 'node:timers/promises';
 import { mailBudgetRules } from './security.js';
 
@@ -23,7 +24,7 @@ export function createMailer(store,{enabled,config,limiter,telemetry,origin,apiK
    let status=0,retryAfter=0;
    try{
     const path=mail.kind==='statement'?'/account':mail.kind==='membership'?'/members':'/';
-    const response=await fetchImpl('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json','Idempotency-Key':mail.id},body:JSON.stringify({from,to:[mail.recipient],subject:mail.subject,text:mail.body+'\n\n'+origin+path}),signal:AbortSignal.timeout(15000)});
+    const response=await fetchImpl('https://api.resend.com/emails',{method:'POST',headers:{Authorization:`Bearer ${apiKey}`,'Content-Type':'application/json','Idempotency-Key':mail.id},body:JSON.stringify({from,to:[mail.recipient],subject:mail.subject,...(mail.kind==='statement'?{html:statementHtml(mail.body,origin)}:{}),text:mail.body+'\n\n'+origin+path}),signal:AbortSignal.timeout(15000)});
     status=response.status;retryAfter=Math.min(900,Math.max(0,Number(response.headers?.get('retry-after'))||0));
     if(!response.ok)throw Error('provider_error');
     store.run("UPDATE outbox SET status='sent',sent_at=?,error=NULL,next_attempt_at=NULL,body=CASE WHEN kind='login' THEN '' ELSE body END WHERE id=?",store.now(),mail.id);telemetry?.record('mail.sent',{scope:'mail',status});
