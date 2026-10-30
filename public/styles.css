@@ -23,3 +23,7 @@ dialog{border:1px solid #dce2d2;background:#fff;border-radius:22px;box-shadow:0 
 @media(max-width:640px){.membership-shell .auth-side{padding:50px 12px 25px}.membership-shell .auth-brand h1{font-size:36px;letter-spacing:-1.5px}.application-card{padding:14px}.applications-panel .section-head{flex-wrap:wrap;gap:12px}.application-card .row-actions{gap:8px}}
 
 .archived-members{margin-top:24px}.archived-members summary{cursor:pointer;font-weight:700}.archived-members summary + p{margin-top:16px}.archived-members small{display:block;color:var(--muted);margin-top:4px}
+
+.human-check{min-width:0}.human-check .hint{margin:8px 0}.security-summary{display:flex;gap:24px;flex-wrap:wrap;margin:18px 0}.security-summary small,.security-summary strong{display:block}.security-summary small{font-size:11px;color:var(--muted);margin-bottom:8px}.security-summary strong{font-size:18px}
+
+.security-panel{margin-bottom:24px}

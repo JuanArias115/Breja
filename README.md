@@ -73,7 +73,7 @@ Referencias: [Google con Firebase](https://firebase.google.com/docs/auth/web/goo
 
 El primer acceso con Google o con código de correo abre una **solicitud de ingreso**. La persona completa su nombre, fecha de nacimiento y posición favorita; puede añadir una segunda posición distinta. La solicitud queda pendiente de revisión, sin acceso a las páginas privadas del club, fotos, noticias, cuentas o inscripciones. La restricción se aplica también en la API.
 
-En **Miembros → Solicitudes de ingreso**, un administrador revisa el nombre, correo, fecha de nacimiento y posiciones antes de **aceptar o rechazar**. La aceptación permite entrar como miembro con la misma sesión al pulsar Actualizar; el rechazo mantiene el acceso bloqueado y se conserva en el historial de solicitudes. Volver a iniciar sesión no reinicia la solicitud ni evita la decisión. No se envían correos adicionales al enviar o revisar solicitudes.
+En **Miembros → Solicitudes de ingreso**, un administrador revisa el nombre, correo, fecha de nacimiento y posiciones antes de **aceptar o rechazar**. La aceptación permite entrar como miembro con la misma sesión al pulsar Actualizar; el rechazo mantiene el acceso bloqueado y se conserva en el historial de solicitudes. Volver a iniciar sesión no reinicia la solicitud ni evita la decisión. Al enviar una solicitud se encola un correo para cada administrador activo, con enlace a Miembros. No incluye datos personales del solicitante y no se duplica al repetir el envío. Las decisiones de aceptación o rechazo no generan correo adicional.
 
 Las cuentas existentes conservan su acceso y sus datos. Las altas manuales mediante **Miembros → Añadir miembro** ya están aprobadas por el administrador. El administrador inicial definido en `ADMIN_EMAIL` queda aprobado al verificar por primera vez su identidad si todavía no existe ningún administrador, para poder gestionar las solicitudes. La fecha de nacimiento y los datos de la solicitud son visibles solo para la persona y los administradores.
 
@@ -90,6 +90,32 @@ En **Miembros → Cambiar rol**, un administrador puede asignar:
 El desarrollador no recibe saldos, movimientos, resúmenes, instrucciones de pago ni contactos de otros miembros. No puede inscribirse, confirmar asistencia, cancelar partidos o realizar operaciones económicas. Los permisos se comprueban en cada petición; los cambios de rol se aplican a las sesiones existentes. Siempre debe quedar un administrador.
 
 El contador de Inicio corresponde a las plazas reservadas del próximo partido. Al volver a cargar la vista tras su inicio, se muestra el siguiente partido disponible; el anterior queda en **Partidos → Anteriores**. Al finalizar, el administrador revisa la asistencia y cierra el partido: se generan los cargos y se actualiza el ranking de participaciones. El historial se conserva.
+
+## Protección del acceso y de los correos
+
+Se mantienen Google y los códigos por correo. En producción se exige Cloudflare Turnstile configurando **las dos** variables `TURNSTILE_SITE_KEY` y `TURNSTILE_SECRET_KEY`. El servidor valida cada token con Cloudflare, comprueba el hostname exacto de `APP_ORIGIN` y la acción (`login_email` o `membership`), y rechaza la operación si la verificación falla o el proveedor no responde. No basta con mostrar el widget. Las claves de prueba de Cloudflare se rechazan en producción.
+
+Los límites de autenticación se guardan en SQLite y sobreviven a reinicios, con identificadores HMAC en lugar de correos o IP en claro. Los contadores caducan y se limita su cantidad:
+
+| Operación | Límite |
+| --- | --- |
+| Pedir código, por IP | 10 intentos / 10 minutos y 30 / 24 horas |
+| Pedir código, por correo | 3 / 15 minutos y 6 / 24 horas; mínimo 60 segundos entre peticiones en producción |
+| Códigos, conjunto de Breja | 30 / hora y 60 / 24 horas |
+| Verificar código | 30 intentos / IP / 10 minutos; 10 / correo / 15 minutos; 5 por código |
+| Google | 20 intentos / IP / 10 minutos |
+| Solicitudes de ingreso | 10 intentos / IP / hora y 50 envíos / 24 horas en total |
+| Sesiones | Máximo 5 sesiones guardadas por cuenta |
+
+Los límites usan ventanas fijas que empiezan con la primera petición, no ventanas deslizantes. Las peticiones generales tienen además un límite en memoria de 300 por IP por minuto. Las respuestas HTTP 429 incluyen `Retry-After`.
+
+`TRUSTED_PROXY_IPS` acepta solo direcciones exactas del proxy. Breja ignora las cabeceras de IP suministradas directamente por un visitante; un Nginx autorizado debe sobrescribir `X-Real-IP`. Si se recrea el proxy y cambia su IP, se debe actualizar esta variable. La aplicación no publica su puerto al exterior.
+
+La cola de correo aplica un presupuesto persistente de **90 intentos / 24 horas** y **2500 / 30 días**, configurable con `EMAIL_DAILY_LIMIT` y `EMAIL_MONTHLY_LIMIT`. Cuenta intentos al proveedor, incluidos reintentos; borrar mensajes no repone presupuesto. Al alcanzar un tope, los mensajes esperan. Estos límites corresponden a Breja, no al consumo de otras aplicaciones ni a las cuotas/calendarios de la cuenta Resend. Se pueden consultar en **Ajustes → Protección de acceso y correos**.
+
+El envío se espacia a un segundo y reintenta errores transitorios como máximo tres veces, conservando la clave de idempotencia. Los códigos caducados o sustituidos se cancelan, y su texto se borra después del envío. Los registros de correo terminados se limpian a los 30 días; los extractos y movimientos financieros permanecen. Una solicitud y sus notificaciones se guardan en la misma transacción. Las notificaciones no se envían a administradores que hayan perdido el rol o se hayan dado de baja.
+
+El contenedor funciona sin privilegios adicionales, con raíz de solo lectura, datos persistentes en el volumen y límites de recursos. Se mantienen CSP, cookies HttpOnly/Secure, validación de origen, encabezados HTTPS y límites de tamaño/tiempo de petición. Turnstile protege formularios; **el dominio todavía no está detrás del proxy/WAF de Cloudflare**. Para esa capa hace falta migrar la zona DNS completa, verificando antes los registros de otros proyectos, MX, DKIM y SPF; después, TLS Full (strict), reglas para autenticación y protección del origen. Conviene activar MFA en Google/Cloudflare y usar una clave de Resend limitada al envío y al dominio remitente.
 
 ## Baja y anonimización de perfiles
 
@@ -141,14 +167,14 @@ Comprueba creación y persistencia tras recargar, inscripción, invitados, pagos
 
 La dirección `localhost` solo sirve en este equipo. Para compartir enlaces utilizables por los participantes hace falta desplegar el servidor en una dirección HTTPS pública con almacenamiento persistente.
 
-1. Copia `.env.example` a `.env` y configura `NODE_ENV=production`, `APP_ORIGIN`, `ADMIN_EMAIL`, `SESSION_SECRET`, `RESEND_API_KEY` y `MAIL_FROM`.
+1. Copia `.env.example` a `.env` y configura `NODE_ENV=production`, `APP_ORIGIN`, `ADMIN_EMAIL`, `SESSION_SECRET`, `RESEND_API_KEY`, `MAIL_FROM`, `TURNSTILE_SITE_KEY` y `TURNSTILE_SECRET_KEY`.
 2. Publica el servidor detrás de un proxy HTTPS que conserve el encabezado `Host`. El proceso escucha en `127.0.0.1`; el proxy es quien recibe las conexiones públicas.
 3. Verifica el dominio remitente en el proveedor de correo. La implementación del envío utiliza [la API de emails de Resend](https://github.com/resend/resend-openapi/blob/main/resend.yaml), con claves de idempotencia. Las credenciales se leen exclusivamente desde el entorno del servidor.
 4. Accede con el email configurado en `ADMIN_EMAIL` para crear la primera cuenta administradora. En producción desaparecen las cuentas rápidas y los códigos visibles. Se usa una base independiente, `.data/breja.sqlite`.
 5. Revisa participantes, zona horaria, importes e instrucciones de pago. Prueba el acceso y la entrega de correo con cuentas controladas antes de activar los envíos mensuales.
 6. Para activar el cierre mensual automático, configura `AUTO_STATEMENTS=true` y mantén el servidor activo con un gestor de procesos. Durante los días 1–7 intenta crear el resumen del mes anterior; si quedan partidos abiertos, espera a que se cierren. Tras ese periodo puede generarse manualmente desde la aplicación. Los resúmenes existentes no se duplican.
 
-El despliegue público está disponible en https://breja.juanariasdev.com, con HTTPS, SQLite persistente y Resend configurado. Quedan pendientes la prueba de entrega real de correo, el primer acceso del administrador y la revisión de los datos del club. Un mensaje marcado `failed` en la bandeja requiere revisar el proveedor y la causa antes de reintentarlo; no se reenvía indefinidamente.
+El despliegue público está disponible en https://breja.juanariasdev.com, con HTTPS, SQLite persistente y Resend configurado. Un mensaje marcado `failed` en la bandeja requiere revisar el proveedor y la causa antes de reintentarlo; no se reenvía indefinidamente.
 
 WhatsApp abre el mensaje preparado para que el organizador lo envíe. **El envío automático por WhatsApp y el cobro online no están integrados.** Los pagos se registran como dinero recibido, y se pueden indicar transferencias en las instrucciones del club.
 

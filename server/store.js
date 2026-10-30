@@ -32,6 +32,8 @@ export class Store {
     this.db = new DatabaseSync(path); this.clock = clock;
     this.db.exec(`PRAGMA foreign_keys=ON; PRAGMA journal_mode=WAL; PRAGMA busy_timeout=5000;
       CREATE TABLE IF NOT EXISTS settings (key TEXT PRIMARY KEY, value TEXT NOT NULL);
+      CREATE TABLE IF NOT EXISTS security_counters (key TEXT PRIMARY KEY, hits INTEGER NOT NULL, expires_at INTEGER NOT NULL);
+      CREATE INDEX IF NOT EXISTS security_counter_expiry ON security_counters(expires_at);
       CREATE TABLE IF NOT EXISTS venues (
         id TEXT PRIMARY KEY, name TEXT NOT NULL, address TEXT NOT NULL DEFAULT '', map_url TEXT NOT NULL DEFAULT '',
         timezone TEXT NOT NULL, season TEXT NOT NULL DEFAULT 'all', archived INTEGER NOT NULL DEFAULT 0,
@@ -93,6 +95,8 @@ export class Store {
       application_submitted_at:'TEXT',membership_reviewed_at:'TEXT',membership_reviewed_by:'TEXT REFERENCES users(id)',
       deleted_at:'TEXT',deleted_by:'TEXT REFERENCES users(id)'
     }))if(!userColumns.includes(name))this.db.exec(`ALTER TABLE users ADD COLUMN ${name} ${definition}`);
+    const outboxColumns=this.all('PRAGMA table_info(outbox)').map(c=>c.name);
+    for(const [name,definition] of Object.entries({attempts:'INTEGER NOT NULL DEFAULT 0',next_attempt_at:'TEXT',subject_user_id:'TEXT REFERENCES users(id)'}))if(!outboxColumns.includes(name))this.db.exec(`ALTER TABLE outbox ADD COLUMN ${name} ${definition}`);
     const newsColumns=this.all('PRAGMA table_info(news)').map(c=>c.name);
     for(const column of ['title_es','body_es','image_data'])if(!newsColumns.includes(column))this.db.exec(`ALTER TABLE news ADD COLUMN ${column} TEXT NOT NULL DEFAULT ''`);
     // Additive migration: existing match locations remain historical snapshots.
@@ -138,7 +142,7 @@ export class Store {
       this.run('DELETE FROM sessions WHERE user_id=?',uid);
       this.run('DELETE FROM login_codes WHERE email=?',user.email);
       this.run('DELETE FROM profile_photos WHERE user_id=?',uid);
-      this.run('DELETE FROM outbox WHERE user_id=? OR recipient=?',uid,user.email);
+      this.run('DELETE FROM outbox WHERE user_id=? OR subject_user_id=? OR recipient=?',uid,uid,user.email);
       this.run("UPDATE payment_reports SET note='' WHERE user_id=?",uid);
       // Preserve financial facts and identifiers, but remove personal free text.
       const redactEntry=entry=>{
@@ -178,6 +182,11 @@ export class Store {
       const user=this.get('SELECT * FROM users WHERE id=?',uid);fail(user?.membership_status==='onboarding'&&!user.deleted_at,'application_not_editable',409);
       this.run("UPDATE users SET name=?,display_name=?,birthday=?,position=?,position_secondary=?,language=?,membership_status='pending',application_submitted_at=? WHERE id=?",name,displayName,birthday,position,secondary,input.language,this.now(),uid);
       this.audit(uid,'membership.submit',uid);
+      for(const admin of this.all("SELECT * FROM users WHERE role='admin' AND membership_status='approved' AND deleted_at IS NULL")){
+        const messages={es:['Nueva solicitud de ingreso · Breja FC','Hay una nueva solicitud de ingreso. Entra en Miembros para revisar sus datos y aceptar o rechazar la solicitud.'],de:['Neuer Aufnahmeantrag · Breja FC','Ein neuer Aufnahmeantrag ist eingegangen. Öffne Mitglieder, um die Angaben zu prüfen und den Antrag anzunehmen oder abzulehnen.'],en:['New membership request · Breja FC','A new membership request has arrived. Open Members to review the details and accept or reject the request.']};
+        const [subject,body]=messages[admin.language]||messages.en;
+        this.enqueue(admin,'membership',`membership:${uid}:${admin.id}`,subject,body,uid);
+      }
       return this.publicUser(this.get('SELECT * FROM users WHERE id=?',uid));
     });
   }
@@ -307,7 +316,7 @@ export class Store {
     this.run(`INSERT INTO ledger (id,user_id,match_id,registration_id,kind,amount_cents,description,occurred_at,created_at,created_by,reverses_id) VALUES (?,?,?,?,'reversal',?,?,?,?,?,?)`,id(),l.user_id,l.match_id,l.registration_id,-l.amount_cents,text(reason,300),this.now(),this.now(),actor,l.id);this.audit(actor,'ledger.reverse',lid,{reason});
   }
   balance(uid,until=null) { return this.get('SELECT COALESCE(SUM(amount_cents),0) balance FROM ledger WHERE user_id=?'+(until?' AND occurred_at<?':''),... (until?[uid,until]:[uid])).balance; }
-  enqueue(user,kind,key,subject,body) { if(!user?.email||user.deleted_at)return;this.run('INSERT OR IGNORE INTO outbox (id,user_id,recipient,subject,body,kind,dedupe_key,created_at) VALUES (?,?,?,?,?,?,?,?)',id(),user.id,user.email,subject,body,kind,key,this.now()); }
+  enqueue(user,kind,key,subject,body,subjectUserId=null) { if(!user?.email||user.deleted_at)return;this.run('INSERT OR IGNORE INTO outbox (id,user_id,recipient,subject,body,kind,dedupe_key,created_at,subject_user_id) VALUES (?,?,?,?,?,?,?,?,?)',id(),user.id,user.email,subject,body,kind,key,this.now(),subjectUserId); }
   statementPreview(month) {
     fail(/^20\d{2}-(0[1-9]|1[0-2])$/.test(month),'invalid_date');const tz=this.settings().timezone;
     // Match dates and payments are grouped by the club's local calendar month.

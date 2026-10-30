@@ -81,3 +81,11 @@ docker compose logs --tail 100 web
 ## Copia de seguridad
 
 No ejecutar `docker compose down -v`: elimina la base de datos. Antes de actualizaciones que cambien el esquema, crear una copia SQLite consistente con `VACUUM INTO` o detener el servicio y copiar el volumen completo, incluidos los archivos WAL. Guardar las copias fuera del volumen activo y probar su restauración. Un rollback de imagen no revierte migraciones de datos.
+
+## Protección de formularios y correo
+
+Guardar las claves de Turnstile solo en `.env` del VPS, nunca en Git. El widget Managed debe permitir `breja.juanariasdev.com`. No requiere mover el DNS. Ver `README.md` para límites y comportamiento de la cola.
+
+El proxy actual sobrescribe `X-Real-IP`. Obtener su dirección con `docker inspect deliciasbakery-web-1 --format '{{(index .NetworkSettings.Networks "allegro_ingress").IPAddress}}'` y guardarla en `TRUSTED_PROXY_IPS`. Revisarla si el proxy se recrea. No usar `*` ni confiar en cabeceras arbitrarias de clientes.
+
+La raíz del contenedor es de solo lectura y `/tmp` es temporal (16 MiB); `.data` sigue siendo persistente y escribible. Las copias grandes deben crearse en el volumen y copiarse fuera del contenedor, no en `/tmp`.

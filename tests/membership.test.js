@@ -12,6 +12,8 @@ import vm from 'node:vm';
 process.env.APP_ORIGIN='http://breja.test';process.env.DATABASE_PATH=':memory:';process.env.NODE_ENV='development';
 process.env.ADMIN_EMAIL='bootstrap-admin@example.test';
 const {api,store}=await import('../server/index.js');
+// Each case represents an independent set of requests, not a shared IP attack.
+test.beforeEach(()=>store.run('DELETE FROM security_counters'));
 const call=(path,cookie='',method='GET',body)=>dispatch(api,'/api'+path,{method,body,headers:{cookie}});
 const application={name:'New Player',display_name:'New Player',birthday:'1996-02-29',position:'central_midfielder',position_secondary:'winger',language:'es'};
 const cookieOf=response=>response.headers['set-cookie'].split(';')[0];

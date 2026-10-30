@@ -16,7 +16,7 @@ function request(path,options={}){
   return new Promise((resolve,reject)=>{
     const req=httpRequest(`${endpoint}${path}`,options,res=>{
       let body='';res.setEncoding('utf8');res.on('data',chunk=>body+=chunk);
-      res.on('end',()=>resolve({status:res.statusCode,json:()=>JSON.parse(body)}));
+      res.on('end',()=>resolve({status:res.statusCode,headers:res.headers,json:()=>JSON.parse(body)}));
     });
     req.on('error',reject);
     req.setTimeout(2000,()=>req.destroy(new Error('HTTP timeout')));
@@ -37,15 +37,22 @@ async function ready(){
 }
 try{
   docker('volume','create',volume);
-  docker('run','-d','--name',name,'-p','127.0.0.1::4173',
+  docker('run','-d','--name',name,'--read-only','--tmpfs','/tmp:rw,noexec,nosuid,size=16m','--cap-drop','ALL','--security-opt','no-new-privileges:true','--pids-limit','100','--memory','512m','--cpus','1','-p','127.0.0.1::4173',
     '-v',`${volume}:/app/.data`,
     '-e',`APP_ORIGIN=${origin}`,'-e','ADMIN_EMAIL=admin@example.test',
     '-e',`SESSION_SECRET=${randomUUID()}`,'-e','RESEND_API_KEY=test-unused',
-    '-e','MAIL_FROM=Breja <test@example.test>',image);
+    '-e','MAIL_FROM=Breja <test@example.test>','-e','TURNSTILE_SITE_KEY=test-site-key','-e','TURNSTILE_SECRET_KEY=test-private-key',image);
   const bootstrap=await ready();
   assert.equal(bootstrap.me,null);
   assert.equal(bootstrap.config.development,false);
   assert.equal(bootstrap.developmentCode,undefined);
+  assert.equal(bootstrap.config.turnstileSiteKey,'test-site-key');
+  assert.equal(JSON.stringify(bootstrap).includes('test-private-key'),false);
+  const protectedRequest=await request('/api/auth/request',{method:'POST',headers:{Host:'breja.juanariasdev.com',Origin:origin,'Content-Type':'application/json'},body:JSON.stringify({name:'Bot',email:'never-send@example.test'})});
+  assert.equal(protectedRequest.status,400);assert.equal(protectedRequest.json().error,'human_verification_required');
+  assert.equal(protectedRequest.headers['strict-transport-security'],'max-age=31536000');
+  assert.match(protectedRequest.headers['content-security-policy'],/https:\/\/challenges.cloudflare.com/);
+  assert.equal(protectedRequest.headers['permissions-policy'],'camera=(), microphone=(), geolocation=()');
   assert.equal((await request('/api/bootstrap',{headers:{Host:'untrusted.example'}})).status,403);
   const demo=await request('/api/auth/development',{
     method:'POST',headers:{Host:'breja.juanariasdev.com',Origin:origin,'Content-Type':'application/json'},
@@ -57,6 +64,8 @@ try{
     import { DatabaseSync } from 'node:sqlite';
     const db=new DatabaseSync('/app/.data/breja.sqlite');
     assert.equal(db.prepare('SELECT count(*) AS n FROM users').get().n,0);
+    assert.equal(db.prepare('SELECT count(*) AS n FROM outbox').get().n,0);
+    assert.ok(db.prepare('SELECT count(*) AS n FROM security_counters').get().n>0);
     db.exec("CREATE TABLE deployment_probe(value TEXT); INSERT INTO deployment_probe VALUES ('retained')");
     db.close();
   `);
@@ -69,6 +78,7 @@ try{
     import { DatabaseSync } from 'node:sqlite';
     const db=new DatabaseSync('/app/.data/breja.sqlite');
     assert.equal(db.prepare('SELECT value FROM deployment_probe').get().value,'retained');
+    assert.ok(db.prepare('SELECT count(*) AS n FROM security_counters').get().n>0);
     db.close();
   `);
   console.log('Container smoke test passed: HTTP, production isolation, SIGTERM and SQLite persistence.');
