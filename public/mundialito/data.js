@@ -1,0 +1,8 @@
+
+export const teams=[{name:'Schnitzelona',abbr:'SC',color:'#bb4045',kit:'Rojo',place:1,players:[['Caldinhas',6],['Vô',1],['Eduardo',null],['Renzo',1],['Kelly',1],['Dante',null],['André',null],['Asadito',2]]},{name:'Galataspeckaray',abbr:'GS',color:'#72818b',kit:'Blanco',place:2,players:[['Ehsam',2],['Baha',1],['Selim',null],['Veri',null],['Wisdom',3],['Bahr',1],['Saurabh',null]]},{name:'Kasspress Rangers',abbr:'KR',color:'#b99a24',kit:'Amarillo',place:3,players:[['Friedrich',1],['Nuno',7],['Nogueira',null],['Patrick',1],['Zaber',null],['Luís',3],['José',null],['Rui',null]]},{name:'Wurst Ham United',abbr:'WH',color:'#396bae',kit:'Azul',place:4,players:[['Fabian',null],['Jakob',null],['Giancarlo',2],['Laurence',null],['Kordian',null],['Guilherme',null],['Hannes',null]]}];
+export const editions={2022:{n:'I',winner:'Brasil',players:'Gaúcho, Beto, Douglas, Thomas, Fernando, Ricardo, André y Klaus',penalty:null},2024:{n:'II',winner:'Stiegl',players:'Daniel, Nico, Marko y José (Arg)',penalty:'Baha',note:'André y Lucca fueron porteros para los cuatro equipos.'},2025:{n:'III',winner:'Serles',players:'Alex, Baho, Tomas (Arg), Renzo, Selim, Eduard y Tashi',penalty:'Guilherme'},2026:{n:'IV',winner:'Schnitzelona',players:'Caldinhas, Vô, Eduardo, Renzo, Kelly, Dante, André y Asadito',penalty:'Patrick'}};
+
+export function scorerRanking(){
+ const records=teams.flatMap(team=>team.players.filter(([,goals])=>goals!==null).map(([name,goals])=>({name,goals,team:team.name,color:team.color}))).sort((a,b)=>b.goals-a.goals||a.name.localeCompare(b.name));
+ return records.map(player=>({...player,rank:records.findIndex(other=>other.goals===player.goals)+1}));
+}

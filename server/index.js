@@ -189,7 +189,7 @@ async function handleApi(req,res,url){
  throw new AppError('not_found',404);
 }
 
-const server=http.createServer(async(req,res)=>{
+export const server=http.createServer(async(req,res)=>{
   res.setHeader('X-Content-Type-Options','nosniff');res.setHeader('Referrer-Policy','same-origin');res.setHeader('X-Frame-Options','SAMEORIGIN');res.setHeader('Permissions-Policy','camera=(), microphone=(), geolocation=()');if(production)res.setHeader('Strict-Transport-Security','max-age=31536000');
   const firebaseSources=googleConfig?` https://${googleConfig.authDomain}`:'';
   res.setHeader('Content-Security-Policy',"default-src 'self'; script-src 'self' https://challenges.cloudflare.com https://www.gstatic.com https://apis.google.com; style-src 'self' 'unsafe-inline'; img-src 'self' data:; font-src 'self'; connect-src 'self' https://identitytoolkit.googleapis.com https://securetoken.googleapis.com https://www.googleapis.com https://www.gstatic.com"+firebaseSources+"; frame-src https://challenges.cloudflare.com https://maps.google.com https://www.google.com https://accounts.google.com"+firebaseSources+"; frame-ancestors 'self'; base-uri 'self'; form-action 'self'");
@@ -197,7 +197,8 @@ const server=http.createServer(async(req,res)=>{
     const allowedHosts=new Set([new URL(origin).host,`127.0.0.1:${port}`]);fail(allowedHosts.has(req.headers.host),'invalid_host',403);
     const url=new URL(req.url,origin);if(url.pathname.startsWith('/api/'))return await api(req,res,url);
     fail(req.method==='GET'||req.method==='HEAD','not_found',404);
-    const file=url.pathname==='/'||!extname(url.pathname)?join(root,'public','index.html'):resolve(root,'public','.'+decodeURIComponent(url.pathname));
+    const tournamentPage=url.pathname==='/mundialito'||url.pathname==='/mundialito/';
+    const file=tournamentPage?join(root,'public','mundialito','index.html'):url.pathname==='/'||(!extname(url.pathname)&&!url.pathname.startsWith('/mundialito/'))?join(root,'public','index.html'):resolve(root,'public','.'+decodeURIComponent(url.pathname));
     fail(file.startsWith(join(root,'public')+ '\\')||file.startsWith(join(root,'public')+'/'),'not_found',404);fail(existsSync(file)&&statSync(file).isFile(),'not_found',404);
     const mime={'.html':'text/html; charset=utf-8','.js':'text/javascript; charset=utf-8','.css':'text/css; charset=utf-8','.png':'image/png','.svg':'image/svg+xml','.webmanifest':'application/manifest+json'};
     res.writeHead(200,{'Content-Type':mime[extname(file)]||'application/octet-stream','Cache-Control':'no-cache'});if(req.method==='HEAD')return res.end();createReadStream(file).pipe(res);
