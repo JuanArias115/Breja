@@ -6,3 +6,12 @@ export function scorerRanking(){
  const records=teams.flatMap(team=>team.players.filter(([,goals])=>goals!==null).map(([name,goals])=>({name,goals,team:team.name,color:team.color}))).sort((a,b)=>b.goals-a.goals||a.name.localeCompare(b.name));
  return records.map(player=>({...player,rank:records.findIndex(other=>other.goals===player.goals)+1}));
 }
+
+// Illustrative 2027 data: fictional teams, results and players, identified as a visual mockup.
+export const demo2027={teams:[
+{name:'Team North',abbr:'N',color:'#bb4045',kit:'Red',players:['Alex Morgan','Sam Rivera','Leo Costa','Max Weber','Jamie Park','Nico Silva','Robin Lee']},
+{name:'Team South',abbr:'S',color:'#72818b',kit:'White',players:['Taylor Reed','Chris Bauer','Dani Alves','Luca Rossi','Mika Ito','Noah Klein','Rafa Lima']},
+{name:'Team East',abbr:'E',color:'#b99a24',kit:'Yellow',players:['Jordan Cole','Ben Fischer','Toni Cruz','Ari Tanaka','Emil Novak','Felix Wolf','Kai Santos']},
+{name:'Team West',abbr:'W',color:'#396bae',kit:'Blue',players:['Casey Young','Marco Dias','Owen Clark','Luis Mendes','Theo Martin','Ivan Petrov','Adam King']}],
+matches:[['Team North','Team South',3,1],['Team East','Team West',2,2],['Team North','Team East',1,2],['Team West','Team South',0,1],['Team North','Team West',4,1],['Team South','Team East',2,2],['Team South','Team North',1,2],['Team West','Team East',3,1],['Team East','Team North',0,0],['Team South','Team West',3,2],['Team West','Team North',1,1],['Team East','Team South',2,1],['Team South','Team West',1,0],['Team North','Team East',2,1]],
+scorers:[['Alex Morgan','Team North',5],['Dani Alves','Team South',4],['Jordan Cole','Team East',4],['Marco Dias','Team West',3],['Leo Costa','Team North',3],['Rafa Lima','Team South',2],['Emil Novak','Team East',2],['Owen Clark','Team West',2],['Max Weber','Team North',1],['Taylor Reed','Team South',1],['Toni Cruz','Team East',1],['Luis Mendes','Team West',1]]};

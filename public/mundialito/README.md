@@ -9,6 +9,6 @@ Web pública en `/mundialito`, independiente de las sesiones y de los datos priv
 
 La edición 2026 incluye la clasificación corregida: Schnitzelona, Galataspeckaray, Kasspress Rangers y Wurst Ham United. En 2024, André y Lucca fueron porteros compartidos. Se conservan los nombres históricos sin fusionar identidades no confirmadas.
 
-La edición 2027 conserva nombres, horarios y marcadores pendientes. Esta versión es de consulta: aún no incluye un editor de resultados ni cálculo automático de puntos. Actualizar los datos en el repositorio y publicar por el flujo existente de Breja. No introducir correos, pagos ni datos de las cuentas del club en estos archivos públicos.
+La edición 2027 presenta cuatro equipos, 14 marcadores y una clasificación ficticios para mostrar cómo se vería el torneo. Toda esa información está marcada como muestra no oficial; los nombres, horarios y resultados reales siguen pendientes. La web abre en inglés y permite cambiar a portugués, español y alemán, guardando la preferencia en el navegador. Esta versión es de consulta: aún no incluye un editor de resultados ni cálculo automático de puntos. Actualizar los datos en el repositorio y publicar por el flujo existente de Breja. No introducir correos, pagos ni datos de las cuentas del club en estos archivos públicos.
 
 Validación: `npm run check` y `npm test`.
