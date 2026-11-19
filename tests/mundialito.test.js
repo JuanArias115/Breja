@@ -20,6 +20,7 @@ test('public tournament routes and assets work without a session under the exist
   assert.match(response.headers.get('content-security-policy'),/script-src 'self'/);
   const html=await response.text();assert.match(html,/MUNDIALITO/);
   assert.match(html,/type="module" src="\/mundialito\/app.js"/);
+  const optionYears=[...html.matchAll(/<option value="(\d{4})"/g)].map(match=>match[1]);assert.deepEqual(optionYears,['2026','2025','2024','2022']);
   assert.doesNotMatch(html,/<script>/);
   assert.doesNotMatch(html,/Propuesta visual|analysis\.html|data:image/);
  }
